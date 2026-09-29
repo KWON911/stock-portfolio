@@ -26,3 +26,10 @@ KIS_ENV=production
 서버 API는 `api/prices.ts`이며, 브라우저는 이 엔드포인트만 호출합니다. APP_SECRET과 access token은 프런트엔드 코드 및 API 응답에 포함되지 않습니다.
 
 KIS의 계좌 없이 쓸 수 있는 USD/KRW 단일 현재환율 공개 API 사양은 공식 예제로 확인하지 못했습니다. 현재 `api/kis/exchangeRate.ts`는 공급자를 분리하고, 필요 시 `KIS_USDKRW_FALLBACK` 값을 사용합니다. 공식 환율 엔드포인트가 확인되면 해당 파일만 교체하면 됩니다.
+# Token and refresh policy
+
+- Market prices are refreshed only by the user pressing **시세 갱신**. Automatic initial, interval, and visibility refresh are disabled by default.
+- A successful or failed manual request starts a five-minute client cooldown to avoid repeated KIS requests.
+- KIS access tokens stay server-side. A hot Vercel instance reuses its memory cache; when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured, the token is also persisted under a server-only Redis key.
+- Without those optional Upstash variables the app remains functional in memory-only mode, but a Vercel cold start can require a new token.
+
