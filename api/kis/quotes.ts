@@ -1,4 +1,4 @@
-import { kisGet } from './client'
+import { kisGet } from './client.js'
 
 export type ApiHolding = { market: 'KR' | 'US'; symbol: string; exchange?: 'NASDAQ' | 'NYSE' | 'AMEX' }
 export type ApiPrice = { currentPrice: number; previousClose: number; currency: 'KRW' | 'USD' }

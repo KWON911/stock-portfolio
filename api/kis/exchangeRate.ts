@@ -3,6 +3,7 @@
  * 따라서 환율 공급자는 분리해 두고, 검증된 KIS 엔드포인트가 확인되면 이 함수만 교체합니다.
  */
 export async function getUsdKrwRate(): Promise<number | undefined> {
-  const configured = Number(process.env.KIS_USDKRW_FALLBACK)
+  const runtimeEnv = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
+  const configured = Number(runtimeEnv.KIS_USDKRW_FALLBACK)
   return Number.isFinite(configured) && configured > 0 ? configured : undefined
 }

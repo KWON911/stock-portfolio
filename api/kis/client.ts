@@ -1,9 +1,10 @@
 type KisResponse = { rt_cd?: string; msg1?: string; output?: Record<string, unknown> }
 type TokenCache = { value: string; expiresAt: number }
 let cachedToken: TokenCache | null = null
+const runtimeEnv = ((globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {})
 
-const baseUrl = () => process.env.KIS_BASE_URL || (process.env.KIS_ENV === 'demo' ? 'https://openapivts.koreainvestment.com:29443' : 'https://openapi.koreainvestment.com:9443')
-const credentials = () => ({ appKey: process.env.KIS_APP_KEY, appSecret: process.env.KIS_APP_SECRET })
+const baseUrl = () => runtimeEnv.KIS_BASE_URL || (runtimeEnv.KIS_ENV === 'demo' ? 'https://openapivts.koreainvestment.com:29443' : 'https://openapi.koreainvestment.com:9443')
+const credentials = () => ({ appKey: runtimeEnv.KIS_APP_KEY, appSecret: runtimeEnv.KIS_APP_SECRET })
 
 export async function kisAccessToken() {
   const now = Date.now()
