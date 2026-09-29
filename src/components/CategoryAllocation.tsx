@@ -1,0 +1,3 @@
+import type { Holding } from '../types/portfolio'
+const labels = { investment: '투자', allowance: '용돈', pension: '연금' }
+export function CategoryAllocation({ holdings }: { holdings: Holding[] }) { const values = (Object.keys(labels) as (keyof typeof labels)[]).map(category => ({ category, value: holdings.filter(h=>h.category===category).reduce((s,h)=>s+h.quantity*h.currentPrice,0) })); const total=values.reduce((s,x)=>s+x.value,0)||1; return <section className="allocation"><h2>목적별 자산 현황</h2>{values.map(x => <div className="allocation-row" key={x.category}><span>{labels[x.category]}</span><div className="bar"><i style={{width:`${x.value/total*100}%`}} /></div><strong>{(x.value/total*100).toFixed(0)}%</strong></div>)}</section> }
