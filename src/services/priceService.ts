@@ -1,7 +1,8 @@
-import type { Currency, Holding } from '../types/portfolio'
+import type { Currency, Holding, MarketDataStatus } from '../types/portfolio'
 
-export interface LivePrice { currentPrice: number; previousClose: number; currency: Currency }
-export interface PriceSnapshot { prices: Record<string, LivePrice>; exchangeRates: { USDKRW?: number }; updatedAt: string }
+export interface LivePrice { currentPrice: number; previousClose: number; currency: Currency; status: MarketDataStatus; updatedAt?: string }
+export interface ExchangeRateSnapshot { rate: number; status: MarketDataStatus; updatedAt?: string }
+export interface PriceSnapshot { prices: Record<string, LivePrice>; exchangeRates: { USDKRW?: ExchangeRateSnapshot }; updatedAt: string; partial?: boolean; failures?: { key: string; market: string; symbol: string; reason: string }[] }
 const key = (holding: Pick<Holding, 'market' | 'symbol' | 'exchange'>) => `${holding.market}:${holding.exchange ?? ''}:${holding.symbol}`
 
 export async function getPortfolioPrices(holdings: Holding[]): Promise<PriceSnapshot> {

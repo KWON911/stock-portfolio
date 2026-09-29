@@ -18,7 +18,7 @@ export default function App() {
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<CalculatedHolding | null>(null)
   const [form, setForm] = useState<Holding | null | undefined>(undefined)
-  const items = useMemo(() => calculateHoldings(market.holdings, filter, market.exchangeRate), [filter, market.exchangeRate, market.holdings])
+  const items = useMemo(() => calculateHoldings(market.holdings, filter, market.exchangeRate?.rate), [filter, market.exchangeRate, market.holdings])
   const updatedText = market.updatedAt ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(market.updatedAt)) : null
   const deleteItem = () => {
     if (selected && confirm(`${selected.name}을(를) 삭제할까요?`)) {
@@ -33,7 +33,7 @@ export default function App() {
       <button className="add" onClick={() => setForm(null)}><Plus size={19} /> 종목 추가</button>
     </div></header>
     <PortfolioSummary items={items} />
-    <div className="market-status" aria-live="polite">{updatedText && <span>시세 기준 {updatedText}</span>}{market.error && <span className="market-error">{market.error}</span>}</div>
+    <div className="market-status" aria-live="polite">{updatedText && <span>시세 기준 {updatedText}</span>}{market.exchangeRate && holdings.some(item => item.market === 'US') && <span>USD/KRW {market.exchangeRate.rate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} · {market.exchangeRate.status === 'live' ? '최신 환율' : market.exchangeRate.status === 'cached' ? '이전 환율' : 'Fallback 환율'}</span>}{market.error && <span className="market-error">{market.error}</span>}</div>
     <PortfolioFilter value={filter} onChange={value => { setFilter(value); setSelected(null) }} />
     <div className="workspace"><PortfolioTreemap items={items} onSelect={setSelected} />{filter === 'all' && <CategoryAllocation holdings={market.holdings} />}<PortfolioList items={items} onSelect={setSelected} /></div>
     {selected && <><div className="detail-dimmer" onClick={() => setSelected(null)} /><PortfolioDetail item={selected} onClose={() => setSelected(null)} onEdit={() => setForm(selected)} onDelete={deleteItem} /></>}

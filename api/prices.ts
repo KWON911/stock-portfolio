@@ -5,6 +5,7 @@ type RequestLike = { method?: string; body?: { holdings?: ApiHolding[] } | strin
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void }
 const identifier = (holding: ApiHolding) => `${holding.market}:${holding.exchange ?? ''}:${holding.symbol}`
 const runtimeEnv = ((globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {})
+const lastSuccessfulPrices = new Map<string, { currentPrice: number; previousClose: number; currency: 'KRW' | 'USD'; status: 'cached'; updatedAt?: string }>()
 
 async function concurrent<T>(jobs: (() => Promise<T>)[], limit = 3) {
   const results: PromiseSettledResult<T>[] = []; let cursor = 0
@@ -23,8 +24,21 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
   const jobs = holdings.map(holding => async () => ({ id: identifier(holding), quote: holding.market === 'KR' ? await getDomesticQuote(holding.symbol) : await getOverseasQuote(holding) }))
   const settled = await concurrent(jobs)
   const prices: Record<string, unknown> = {}
-  settled.forEach(result => { if (result.status === 'fulfilled') prices[result.value.id] = result.value.quote })
-  const rate = await getUsdKrwRate()
+  const failures: { key: string; market: ApiHolding['market']; symbol: string; reason: 'quote_request_failed' }[] = []
+  settled.forEach((result, index) => {
+    const holding = holdings[index]
+    if (result.status === 'fulfilled') {
+      prices[result.value.id] = result.value.quote
+      lastSuccessfulPrices.set(result.value.id, { ...result.value.quote, status: 'cached' })
+      console.info('[quote] live', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
+      return
+    }
+    const key = identifier(holding), cached = lastSuccessfulPrices.get(key)
+    if (cached) prices[key] = cached
+    else failures.push({ key, market: holding.market, symbol: holding.symbol, reason: 'quote_request_failed' })
+    console.warn('[quote] failed', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
+  })
+  const rate = await getUsdKrwRate(holdings.find(holding => holding.market === 'US'))
   res.status(200)
-  return res.json({ prices, exchangeRates: rate ? { USDKRW: rate } : {}, updatedAt: new Date().toISOString(), partial: settled.some(result => result.status === 'rejected') })
+  return res.json({ prices, exchangeRates: rate ? { USDKRW: { rate: rate.rate, status: rate.source === 'cache' ? 'cached' : rate.source, updatedAt: rate.updatedAt } } : {}, updatedAt: new Date().toISOString(), partial: settled.some(result => result.status === 'rejected'), failures })
 }

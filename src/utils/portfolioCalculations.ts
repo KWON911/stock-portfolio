@@ -16,15 +16,16 @@ export function combineHoldings(holdings: Holding[], filter: Filter): Holding[] 
   })
   return [...merged.values()]
 }
-export function calculateHoldings(holdings: Holding[], filter: Filter, usdKrwRate = 1): CalculatedHolding[] {
+export function calculateHoldings(holdings: Holding[], filter: Filter, usdKrwRate?: number): CalculatedHolding[] {
   const combined = combineHoldings(holdings, filter)
-  const krwValue = (h: Holding, price: number) => h.currency === 'USD' ? h.quantity * price * usdKrwRate : h.quantity * price
+  const exchangeRate = Number.isFinite(usdKrwRate) ? usdKrwRate : undefined
+  const krwValue = (h: Holding, price: number) => h.currency === 'USD' ? (exchangeRate === undefined ? Number.NaN : h.quantity * price * exchangeRate) : h.quantity * price
   const total = combined.reduce((sum, h) => sum + krwValue(h, h.currentPrice), 0)
   return combined.map(h => {
     // 미국 종목의 평가액과 오늘 손익은 현재 USD/KRW로 원화 환산합니다. 누적 수익률은 USD 가격만으로 계산합니다.
     const invested = safe(krwValue(h, h.averagePrice)), value = safe(krwValue(h, h.currentPrice)), profit = value - invested
-    const categories = filter === 'all' ? holdings.filter(x => x.symbol === h.symbol && x.market === h.market).reduce<Partial<Record<Category, number>>>((o, x) => ({ ...o, [x.category]: (o[x.category] || 0) + (x.currency === 'USD' ? x.quantity * x.currentPrice * usdKrwRate : x.quantity * x.currentPrice) }), {}) : undefined
-    return { ...h, invested, value, profit, returnRate: percent(h.currentPrice - h.averagePrice, h.averagePrice), dailyProfit: safe((h.currentPrice - h.previousClose) * h.quantity * (h.currency === 'USD' ? usdKrwRate : 1)), dailyRate: percent(h.currentPrice - h.previousClose, h.previousClose), allocation: percent(value, total), categories }
+    const categories = filter === 'all' ? holdings.filter(x => x.symbol === h.symbol && x.market === h.market).reduce<Partial<Record<Category, number>>>((o, x) => ({ ...o, [x.category]: (o[x.category] || 0) + krwValue(x, x.currentPrice) }), {}) : undefined
+    return { ...h, invested, value, profit, returnRate: percent(h.currentPrice - h.averagePrice, h.averagePrice), dailyProfit: safe(krwValue(h, h.currentPrice - h.previousClose)), dailyRate: percent(h.currentPrice - h.previousClose, h.previousClose), allocation: percent(value, total), categories }
   })
 }
 export function totals(items: CalculatedHolding[]) {

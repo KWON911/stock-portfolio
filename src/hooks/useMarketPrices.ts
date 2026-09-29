@@ -2,10 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPortfolioPrices, priceKey, type PriceSnapshot } from '../services/priceService'
 import type { Holding } from '../types/portfolio'
 
-const CACHE_KEY = 'my-stock-portfolio-price-cache-v1'
-const FALLBACK_USDKRW = 1380
+const CACHE_KEY = 'my-stock-portfolio-price-cache-v2'
+const LEGACY_CACHE_KEY = 'my-stock-portfolio-price-cache-v1'
 
-function cachedSnapshot(): PriceSnapshot | null { try { const raw = sessionStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) as PriceSnapshot : null } catch { return null } }
+function normalizeSnapshot(value: unknown): PriceSnapshot | null {
+  if (!value || typeof value !== 'object') return null
+  const snapshot = value as PriceSnapshot & { exchangeRates?: { USDKRW?: number | PriceSnapshot['exchangeRates']['USDKRW'] } }
+  if (!snapshot.prices || !snapshot.updatedAt) return null
+  const prices = Object.fromEntries(Object.entries(snapshot.prices).map(([key, price]) => [key, { ...price, status: price.status ?? 'cached' }]))
+  const legacyRate = typeof snapshot.exchangeRates?.USDKRW === 'number' ? snapshot.exchangeRates.USDKRW : undefined
+  const rate = legacyRate ? { rate: legacyRate, status: 'cached' as const, updatedAt: snapshot.updatedAt } : snapshot.exchangeRates?.USDKRW
+  return { ...snapshot, prices, exchangeRates: rate ? { USDKRW: rate } : {} }
+}
+function cachedSnapshot(): PriceSnapshot | null { try { const raw = sessionStorage.getItem(CACHE_KEY) ?? sessionStorage.getItem(LEGACY_CACHE_KEY); return raw ? normalizeSnapshot(JSON.parse(raw)) : null } catch { return null } }
 
 export function useMarketPrices(holdings: Holding[]) {
   const [snapshot, setSnapshot] = useState<PriceSnapshot | null>(cachedSnapshot)
@@ -28,7 +37,7 @@ export function useMarketPrices(holdings: Holding[]) {
   }, [refresh])
   const hydrated = useMemo(() => holdings.map(holding => {
     const price = snapshot?.prices[priceKey(holding)]
-    return price ? { ...holding, ...price } : holding
+    return price ? { ...holding, ...price, priceStatus: price.status, priceUpdatedAt: price.updatedAt } : { ...holding, priceStatus: 'fallback' as const }
   }), [holdings, snapshot])
-  return { holdings: hydrated, exchangeRate: snapshot?.exchangeRates.USDKRW ?? FALLBACK_USDKRW, updatedAt: snapshot?.updatedAt, loading, error, refresh }
+  return { holdings: hydrated, exchangeRate: snapshot?.exchangeRates.USDKRW, updatedAt: snapshot?.updatedAt, loading, error, refresh, failures: snapshot?.failures ?? [] }
 }
