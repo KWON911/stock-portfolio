@@ -1,4 +1,4 @@
-type KisResponse = { rt_cd?: string; msg1?: string; output?: Record<string, unknown> }
+type KisResponse = { rt_cd?: string; msg_cd?: string; msg1?: string; output?: Record<string, unknown> }
 type TokenCache = { value: string; expiresAt: number }
 let cachedToken: TokenCache | null = null
 let tokenRequestInFlight: Promise<string> | null = null
@@ -46,8 +46,27 @@ export async function kisGet(path: string, trId: string, params: Record<string, 
   const token = await kisAccessToken()
   const url = new URL(path, baseUrl())
   Object.entries(params).forEach(([name, value]) => url.searchParams.set(name, value))
-  const response = await fetch(url, { headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, appkey: appKey, appsecret: appSecret, tr_id: trId } })
-  const body = await response.json() as KisResponse
-  if (!response.ok || body.rt_cd !== '0' || !body.output) throw new Error(body.msg1 || 'KIS quotation request failed')
+  const response = await fetch(url, {
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+      appkey: appKey,
+      appsecret: appSecret,
+      tr_id: trId,
+      custtype: 'P',
+      tr_cont: '',
+    },
+  })
+  let body: KisResponse = {}
+  try { body = await response.json() as KisResponse } catch { /* KIS can return an empty non-JSON error body. */ }
+  if (!response.ok || body.rt_cd !== '0' || !body.output) {
+    console.warn('[KIS] request failed', {
+      path,
+      trId,
+      msgCode: body.msg_cd,
+      message: body.msg1 || `HTTP ${response.status}`,
+    })
+    throw new Error(body.msg1 || 'KIS quotation request failed')
+  }
   return body.output
 }

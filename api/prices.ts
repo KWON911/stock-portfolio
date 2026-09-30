@@ -25,11 +25,13 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
   const settled = await concurrent(jobs)
   const prices: Record<string, unknown> = {}
   const failures: { key: string; market: ApiHolding['market']; symbol: string; reason: 'quote_request_failed' }[] = []
+  const exchangeRateCandidates: ApiHolding[] = []
   settled.forEach((result, index) => {
     const holding = holdings[index]
     if (result.status === 'fulfilled') {
       prices[result.value.id] = result.value.quote
       lastSuccessfulPrices.set(result.value.id, { ...result.value.quote, status: 'cached' })
+      if (holding.market === 'US') exchangeRateCandidates.push(holding)
       console.info('[quote] live', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
       return
     }
@@ -38,7 +40,7 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
     else failures.push({ key, market: holding.market, symbol: holding.symbol, reason: 'quote_request_failed' })
     console.warn('[quote] failed', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
   })
-  const rate = await getUsdKrwRate(holdings.find(holding => holding.market === 'US'))
+  const rate = await getUsdKrwRate(exchangeRateCandidates)
   res.status(200)
   return res.json({ prices, exchangeRates: rate ? { USDKRW: { rate: rate.rate, status: rate.source === 'cache' ? 'cached' : rate.source, updatedAt: rate.updatedAt } } : {}, updatedAt: new Date().toISOString(), partial: settled.some(result => result.status === 'rejected'), failures })
 }

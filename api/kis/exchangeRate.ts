@@ -15,19 +15,19 @@ const fallbackRate = () => {
 }
 
 // KIS [해외주식 현재가상세] v1_해외주식-010의 output.t_rate(당일환율)를 사용한다.
-// API 호출은 포트폴리오 요청당 미국 보유 종목 하나에 대해서만 발생한다.
-export async function getUsdKrwRate(holding?: ApiHolding): Promise<ExchangeRateResult | null> {
-  if (holding) {
+// 이미 가격 조회에 성공한 미국 종목을 최대 세 개까지 순차 시도하고, 첫 성공값을 사용한다.
+export async function getUsdKrwRate(holdings: ApiHolding[]): Promise<ExchangeRateResult | null> {
+  const candidates = holdings.filter(holding => holding.market === 'US').slice(0, 3)
+  for (const holding of candidates) {
     try {
       const rate = await getOverseasExchangeRate(holding)
       const updatedAt = new Date().toISOString()
       lastSuccessfulUsdKrwRate = rate; lastSuccessfulUsdKrwUpdatedAt = updatedAt
-      console.info('[exchange-rate] live', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
+      console.info('[exchange-rate] live', { symbol: holding.symbol, exchange: holding.exchange })
       return { rate, source: 'live', updatedAt }
-    } catch {
-      console.warn('[exchange-rate] live request failed; using cached or fallback rate')
-    }
+    } catch { /* kisGet emits a safe diagnostic; try the next candidate. */ }
   }
+  if (candidates.length) console.warn('[exchange-rate] live request failed; using cached or fallback rate')
   if (lastSuccessfulUsdKrwRate) return { rate: lastSuccessfulUsdKrwRate, source: 'cache', updatedAt: lastSuccessfulUsdKrwUpdatedAt }
   const rate = fallbackRate()
   return rate ? { rate, source: 'fallback' } : null
