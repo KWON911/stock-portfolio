@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Transaction } from '../types/transaction'
+import type { Holding } from '../types/portfolio'
 import { validateTransactionSequence } from '../utils/transactionCalculations'
 
 const KEY = 'my-stock-portfolio-transactions-v1'
@@ -24,5 +25,6 @@ export function useTransactions() {
     if (!error) setTransactions(next)
     return error
   }
-  return { transactions, save, remove }
+  const removeForHoldings = (targets: Holding[]) => setTransactions(items => items.filter(transaction => !targets.some(holding => transaction.holdingId === holding.id || (!transaction.holdingId && transaction.market === holding.market && transaction.symbol === holding.symbol && transaction.category === holding.category))))
+  return { transactions, save, remove, removeForHoldings, reset: () => setTransactions([]) }
 }

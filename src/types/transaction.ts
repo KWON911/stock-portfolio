@@ -1,6 +1,6 @@
 import type { Category, Currency, Market } from './portfolio'
 
-export type TransactionType = 'buy' | 'sell'
+export type TransactionType = 'opening' | 'buy' | 'sell'
 
 export interface Transaction {
   id: string
