@@ -14,7 +14,7 @@ export function combineHoldings(holdings: Holding[], filter: Filter): Holding[] 
       const quantity = found.quantity + h.quantity
       const { transactionPositions: existingPositions, ...base } = found
       delete base.transactionPosition
-      const legacyPosition = (holding: Holding): TransactionPosition => ({ quantity: holding.quantity, averagePrice: holding.averagePrice, totalBuyQuantity: holding.quantity, totalSellQuantity: 0, totalBuyAmount: holding.quantity * holding.averagePrice, realizedProfit: 0, realizedProfitKrw: 0 })
+      const legacyPosition = (holding: Holding): TransactionPosition => ({ quantity: holding.quantity, averagePrice: holding.averagePrice, openingQuantity: 0, openingAmount: 0, totalBuyQuantity: 0, totalSellQuantity: 0, totalBuyAmount: 0, realizedProfit: 0, realizedProfitKrw: 0 })
       const positions = { ...existingPositions, [found.category]: found.transactionPosition ?? existingPositions?.[found.category] ?? legacyPosition(found), [h.category]: h.transactionPosition ?? legacyPosition(h) }
       merged.set(key, { ...base, displayName: found.displayName ?? h.displayName, quantity, averagePrice: safe((found.quantity * found.averagePrice + h.quantity * h.averagePrice) / quantity), currentPrice: h.currentPrice, previousClose: h.previousClose, transactionPositions: Object.keys(positions).length ? positions : undefined })
     }

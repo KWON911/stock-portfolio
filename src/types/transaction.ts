@@ -26,6 +26,9 @@ export interface TransactionPosition {
   quantity: number
   averagePrice: number
   averageCostKrw?: number
+  openingQuantity: number
+  openingAmount: number
+  openingAmountKrw?: number
   totalBuyQuantity: number
   totalSellQuantity: number
   totalBuyAmount: number

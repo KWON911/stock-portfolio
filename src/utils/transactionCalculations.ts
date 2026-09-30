@@ -11,6 +11,7 @@ export const transactionsForSymbol = (transactions: Transaction[], market: Trans
 
 export function calculatePositionFromTransactions(transactions: Transaction[]): TransactionPosition {
   let quantity = 0, averagePrice = 0, averageCostKrw: number | undefined = 0
+  let openingQuantity = 0, openingAmount = 0, openingAmountKrw: number | undefined = 0
   let totalBuyQuantity = 0, totalSellQuantity = 0, totalBuyAmount = 0, totalBuyAmountKrw: number | undefined = 0, realizedProfit = 0, realizedProfitKrw: number | undefined = 0
   for (const transaction of sorted(transactions)) {
     const fee = amount(transaction.fee), tax = amount(transaction.tax)
@@ -19,9 +20,9 @@ export function calculatePositionFromTransactions(transactions: Transaction[]): 
       quantity = transaction.quantity
       averagePrice = transaction.price
       averageCostKrw = fx === undefined ? undefined : transaction.price * fx
-      totalBuyQuantity += transaction.quantity
-      totalBuyAmount += transaction.quantity * transaction.price
-      totalBuyAmountKrw = totalBuyAmountKrw !== undefined && fx !== undefined ? totalBuyAmountKrw + transaction.quantity * transaction.price * fx : undefined
+      openingQuantity = transaction.quantity
+      openingAmount = transaction.quantity * transaction.price
+      openingAmountKrw = fx === undefined ? undefined : openingAmount * fx
       continue
     }
     if (transaction.type === 'buy') {
@@ -45,7 +46,7 @@ export function calculatePositionFromTransactions(transactions: Transaction[]): 
     totalSellQuantity += transaction.quantity
     if (quantity === 0) { averagePrice = 0; averageCostKrw = 0 }
   }
-  return { quantity, averagePrice, averageCostKrw, totalBuyQuantity, totalSellQuantity, totalBuyAmount, totalBuyAmountKrw, realizedProfit, realizedProfitKrw }
+  return { quantity, averagePrice, averageCostKrw, openingQuantity, openingAmount, openingAmountKrw, totalBuyQuantity, totalSellQuantity, totalBuyAmount, totalBuyAmountKrw, realizedProfit, realizedProfitKrw }
 }
 
 export function calculateSaleResults(transactions: Transaction[]): Map<string, SaleResult> {
