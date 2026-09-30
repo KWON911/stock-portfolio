@@ -3,11 +3,20 @@ export interface TokenStore { get(): Promise<StoredToken | null>; set(token: Sto
 
 const runtimeEnv = (globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {}
 const KEY = 'kis:access-token:production'
-const configured = () => runtimeEnv.UPSTASH_REDIS_REST_URL && runtimeEnv.UPSTASH_REDIS_REST_TOKEN
+
+// Vercel's Upstash integration uses the longer KV_REST_API names. Keep the
+// original names as a fallback for existing deployments and local setups.
+const restUrl = () =>
+  runtimeEnv.UPSTASH_REDIS_REST_KV_REST_API_URL || runtimeEnv.UPSTASH_REDIS_REST_URL
+
+const restToken = () =>
+  runtimeEnv.UPSTASH_REDIS_REST_KV_REST_API_TOKEN || runtimeEnv.UPSTASH_REDIS_REST_TOKEN
+
+const configured = () => Boolean(restUrl() && restToken())
 
 async function command(parts: string[]) {
-  const base = runtimeEnv.UPSTASH_REDIS_REST_URL
-  const token = runtimeEnv.UPSTASH_REDIS_REST_TOKEN
+  const base = restUrl()
+  const token = restToken()
   if (!base || !token) throw new Error('persistent token store is not configured')
   const response = await fetch(`${base}/${parts.map(encodeURIComponent).join('/')}`, { headers: { authorization: `Bearer ${token}` } })
   if (!response.ok) throw new Error('persistent token store request failed')
