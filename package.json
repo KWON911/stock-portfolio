@@ -9,7 +9,9 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@types/d3-hierarchy": "^3.1.7",
     "@vitejs/plugin-react": "latest",
+    "d3-hierarchy": "^3.1.2",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",

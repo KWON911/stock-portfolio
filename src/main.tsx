@@ -9,4 +9,6 @@ import './opening.css'
 import './aggregate.css'
 import './mobile.css'
 import './app-shell.css'
+import './treemap.css'
+import './treemap-gutter.css'
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)
