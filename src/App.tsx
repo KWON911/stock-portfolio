@@ -7,17 +7,26 @@ import { PortfolioFilter } from './components/PortfolioFilter'
 import { PortfolioList } from './components/PortfolioList'
 import { PortfolioSummary } from './components/PortfolioSummary'
 import { PortfolioTreemap } from './components/PortfolioTreemap'
+import { TransactionForm } from './components/TransactionForm'
+import { TransactionLedger } from './components/TransactionLedger'
 import { useMarketPrices } from './hooks/useMarketPrices'
 import { usePortfolio } from './hooks/usePortfolio'
+import { useTransactions } from './hooks/useTransactions'
 import type { CalculatedHolding, Filter, Holding } from './types/portfolio'
+import type { Transaction } from './types/transaction'
+import { applyTransactionsToHoldings } from './utils/transactionCalculations'
 import { calculateHoldings } from './utils/portfolioCalculations'
 
 export default function App() {
   const { holdings, save, remove, reset } = usePortfolio()
-  const market = useMarketPrices(holdings)
+  const { transactions, save: saveTransaction, remove: removeTransaction } = useTransactions()
   const [filter, setFilter] = useState<Filter>('all')
+  const [view, setView] = useState<'holdings' | 'transactions'>('holdings')
   const [selected, setSelected] = useState<CalculatedHolding | null>(null)
   const [form, setForm] = useState<Holding | null | undefined>(undefined)
+  const [transactionForm, setTransactionForm] = useState<Transaction | null | undefined>(undefined)
+  const transactionHoldings = useMemo(() => applyTransactionsToHoldings(holdings, transactions), [holdings, transactions])
+  const market = useMarketPrices(transactionHoldings)
   const items = useMemo(() => calculateHoldings(market.holdings, filter, market.exchangeRate?.rate), [filter, market.exchangeRate, market.holdings])
   const updatedText = market.updatedAt ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(market.updatedAt)) : null
   const deleteItem = () => {
@@ -26,17 +35,27 @@ export default function App() {
       originals.forEach(item => remove(item.id)); setSelected(null)
     }
   }
+  const deleteTransaction = (transaction: Transaction) => {
+    if (!confirm(`${transaction.name} 거래를 삭제할까요?`)) return
+    const error = removeTransaction(transaction.id)
+    if (error) alert(error)
+  }
+  const openTransactions = () => { setSelected(null); setView('transactions') }
   return <main>
     <header className="app-header"><div><p>Personal investing</p><h1>나의 포트폴리오</h1></div><div className="header-actions">
       <button className="refresh" onClick={() => void market.refresh()} disabled={market.loading} aria-label="시세 갱신">{market.loading ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}<span>시세 갱신</span></button>
       <button className="reset" onClick={() => { if (confirm('샘플 데이터로 초기화할까요?')) reset() }} title="샘플 데이터 초기화"><RotateCcw size={17} /><span>초기화</span></button>
-      <button className="add" onClick={() => setForm(null)}><Plus size={19} /> 종목 추가</button>
+      <button className="add" onClick={() => setForm(null)}><Plus size={19} aria-hidden="true" /> 종목 추가</button>
     </div></header>
-    <PortfolioSummary items={items} />
-    <div className="market-status" aria-live="polite">{updatedText && <span>시세 기준 {updatedText} · {market.autoRefreshEnabled ? '자동 갱신' : '수동 갱신'}</span>}{!updatedText && <span>자동 갱신 꺼짐 · 수동 갱신</span>}{market.exchangeRate && holdings.some(item => item.market === 'US') && <span>USD/KRW {market.exchangeRate.rate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} · {market.exchangeRate.status === 'live' ? '최신 환율' : market.exchangeRate.status === 'cached' ? '이전 환율' : 'Fallback 환율'}</span>}{market.error && <span className="market-error">{market.error}</span>}</div>
-    <PortfolioFilter value={filter} onChange={value => { setFilter(value); setSelected(null) }} />
-    <div className="workspace"><PortfolioTreemap items={items} onSelect={setSelected} />{filter === 'all' && <CategoryAllocation holdings={market.holdings} />}<PortfolioList items={items} onSelect={setSelected} /></div>
-    {selected && <><div className="detail-dimmer" onClick={() => setSelected(null)} /><PortfolioDetail item={selected} onClose={() => setSelected(null)} onEdit={() => setForm(selected)} onDelete={deleteItem} /></>}
+    <nav className="view-tabs" aria-label="포트폴리오 화면"><button className={view === 'holdings' ? 'active' : ''} onClick={() => setView('holdings')}>보유 종목</button><button className={view === 'transactions' ? 'active' : ''} onClick={() => setView('transactions')}>거래내역</button></nav>
+    {view === 'holdings' ? <>
+      <PortfolioSummary items={items} />
+      <div className="market-status" aria-live="polite">{updatedText && <span>시세 기준 {updatedText} · {market.autoRefreshEnabled ? '자동 갱신' : '수동 갱신'}</span>}{!updatedText && <span>자동 갱신 꺼짐 · 수동 갱신</span>}{market.exchangeRate && holdings.some(item => item.market === 'US') && <span>USD/KRW {market.exchangeRate.rate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} · {market.exchangeRate.status === 'live' ? '최신 환율' : market.exchangeRate.status === 'cached' ? '이전 환율' : 'Fallback 환율'}</span>}{market.error && <span className="market-error">{market.error}</span>}</div>
+      <PortfolioFilter value={filter} onChange={value => { setFilter(value); setSelected(null) }} />
+      <div className="workspace"><PortfolioTreemap items={items} onSelect={setSelected} />{filter === 'all' && <CategoryAllocation holdings={market.holdings} />}<PortfolioList items={items} onSelect={setSelected} /></div>
+    </> : <TransactionLedger transactions={transactions} filter={filter} onFilter={setFilter} onAdd={() => setTransactionForm(null)} onEdit={transaction => setTransactionForm(transaction)} onDelete={deleteTransaction} />}
+    {selected && <><div className="detail-dimmer" onClick={() => setSelected(null)} /><PortfolioDetail item={selected} onClose={() => setSelected(null)} onEdit={() => setForm(selected)} onDelete={deleteItem} onTransactions={openTransactions} /></>}
     {form !== undefined && <HoldingForm item={form || undefined} onSave={save} onClose={() => setForm(undefined)} />}
+    {transactionForm !== undefined && <TransactionForm item={transactionForm || undefined} holdings={holdings} defaultFxRate={market.exchangeRate?.rate} onSave={saveTransaction} onClose={() => setTransactionForm(undefined)} />}
   </main>
 }

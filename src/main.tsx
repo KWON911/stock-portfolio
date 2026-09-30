@@ -4,4 +4,5 @@ import App from './App'
 import './styles.css'
 import './quote-status.css'
 import './market.css'
+import './transactions.css'
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)

@@ -8,6 +8,7 @@ export interface Holding {
   id: string; symbol: string; name: string; displayName?: string; market: Market; exchange?: 'NASDAQ' | 'NYSE' | 'AMEX'; currency?: Currency; category: Category
   quantity: number; averagePrice: number; currentPrice: number; previousClose: number
   priceStatus?: MarketDataStatus; priceUpdatedAt?: string
+  transactionPosition?: import('./transaction').TransactionPosition
 }
 
 export interface CalculatedHolding extends Holding {
