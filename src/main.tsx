@@ -8,4 +8,5 @@ import './transactions.css'
 import './opening.css'
 import './aggregate.css'
 import './mobile.css'
+import './app-shell.css'
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)

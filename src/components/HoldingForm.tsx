@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Holding } from '../types/portfolio'
 const empty = (): Holding => ({ id: crypto.randomUUID(), category: 'investment', market: 'KR', currency: 'KRW', symbol: '', name: '', quantity: 0, averagePrice: 0, currentPrice: 0, previousClose: 0 })
 
-export function HoldingForm({ item, onSave, onClose }: { item?: Holding; onSave: (item: Holding) => void; onClose: () => void }) {
+export function HoldingForm({ item, lockPosition = false, onSave, onClose }: { item?: Holding; lockPosition?: boolean; onSave: (item: Holding) => void; onClose: () => void }) {
   const [form, setForm] = useState<Holding>(item || empty()), [error, setError] = useState('')
   useEffect(() => setForm(item || empty()), [item])
   const change = (key: keyof Holding, value: string) => setForm(current => ({ ...current, [key]: ['quantity', 'averagePrice', 'currentPrice', 'previousClose'].includes(key) ? Math.max(0, Number(value.replace(/[^0-9.]/g, ''))) : value } as Holding))
@@ -13,9 +13,9 @@ export function HoldingForm({ item, onSave, onClose }: { item?: Holding; onSave:
     <Select label="시장" value={form.market} onChange={value => setMarket(value as 'KR' | 'US')} values={[['KR', '국내'], ['US', '미국']]} />
     {form.market === 'US' && <Select label="거래소" value={form.exchange ?? 'NASDAQ'} onChange={value => change('exchange', value)} values={[['NASDAQ', 'NASDAQ'], ['NYSE', 'NYSE'], ['AMEX', 'AMEX']]} />}
     <Field label="종목 코드" value={form.symbol} onChange={value => change('symbol', value)} /><Field label="종목명" value={form.name} onChange={value => change('name', value)} />
-    <Field label="보유 수량" type="number" value={form.quantity} onChange={value => change('quantity', value)} /><Field label={`평균 매수가${form.currency === 'USD' ? ' (USD)' : ''}`} type="number" value={form.averagePrice} onChange={value => change('averagePrice', value)} />
+    <Field label="보유 수량" type="number" value={form.quantity} onChange={value => change('quantity', value)} disabled={lockPosition} /><Field label={`평균 매수가${form.currency === 'USD' ? ' (USD)' : ''}`} type="number" value={form.averagePrice} onChange={value => change('averagePrice', value)} disabled={lockPosition} />
     <Field label={`현재가${form.currency === 'USD' ? ' (USD)' : ''}`} type="number" value={form.currentPrice} onChange={value => change('currentPrice', value)} /><Field label={`전일 종가${form.currency === 'USD' ? ' (USD)' : ''}`} type="number" value={form.previousClose} onChange={value => change('previousClose', value)} />
-  </div>{error && <p className="form-error">{error}</p>}<button className="save-button">{item ? '변경 저장' : '종목 추가'}</button></form></div>
+  </div>{lockPosition && <p className="form-hint">거래내역 기반으로 보유수량과 평균매수가는 자동 계산됩니다.</p>}{error && <p className="form-error">{error}</p>}<button className="save-button">{item ? '변경 저장' : '종목 추가'}</button></form></div>
 }
-function Field({ label, value, onChange, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) { return <label className="field">{label}<input required type={type} min={type === 'number' ? 0 : undefined} step={type === 'number' ? 'any' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
+function Field({ label, value, onChange, type = 'text', disabled = false }: { label: string; value: string | number; onChange: (value: string) => void; type?: string; disabled?: boolean }) { return <label className="field">{label}<input required disabled={disabled} type={type} min={type === 'number' ? 0 : undefined} step={type === 'number' ? 'any' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
 function Select({ label, value, onChange, values }: { label: string; value: string; onChange: (value: string) => void; values: [string, string][] }) { return <label className="field">{label}<select value={value} onChange={event => onChange(event.target.value)}>{values.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label> }
