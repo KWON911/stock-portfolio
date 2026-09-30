@@ -7,4 +7,5 @@ import './market.css'
 import './transactions.css'
 import './opening.css'
 import './aggregate.css'
+import './mobile.css'
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)

@@ -1,0 +1,15 @@
+@media(max-width:760px){
+  .app-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}
+  .app-header>div:first-child{min-width:0}
+  .app-header h1{font-size:clamp(22px,6.5vw,26px);white-space:nowrap}
+  .header-actions{display:contents}
+  .header-actions .add{grid-column:2;grid-row:1;padding:0 10px;font-size:14px;white-space:nowrap}
+  .header-actions .refresh,.header-actions .reset{min-width:42px;padding:0;justify-content:center}
+  .header-actions .refresh{grid-column:1;grid-row:2;justify-self:start}
+  .header-actions .reset{grid-column:2;grid-row:2;justify-self:end}
+  .header-actions .refresh span,.header-actions .reset span{display:none}
+  .stat span{font-size:13px;white-space:nowrap}
+  .stat strong{font-size:clamp(20px,6vw,23px);white-space:nowrap}
+  .filter button{min-width:0;padding:8px;white-space:nowrap}
+  .view-tabs button{white-space:nowrap}
+}
