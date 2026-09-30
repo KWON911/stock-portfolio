@@ -9,6 +9,7 @@ export interface Holding {
   quantity: number; averagePrice: number; currentPrice: number; previousClose: number
   priceStatus?: MarketDataStatus; priceUpdatedAt?: string
   transactionPosition?: import('./transaction').TransactionPosition
+  transactionPositions?: Partial<Record<Category, import('./transaction').TransactionPosition>>
 }
 
 export interface CalculatedHolding extends Holding {

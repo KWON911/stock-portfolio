@@ -1,4 +1,5 @@
 import type { CalculatedHolding, Category, Filter, Holding } from '../types/portfolio'
+import type { TransactionPosition } from '../types/transaction'
 const safe = (n: number) => Number.isFinite(n) ? n : 0
 const percent = (n: number, d: number) => d > 0 ? safe((n / d) * 100) : 0
 
@@ -8,10 +9,14 @@ export function combineHoldings(holdings: Holding[], filter: Filter): Holding[] 
   const merged = new Map<string, Holding>()
   selected.forEach(h => {
     const key = `${h.market}:${h.symbol}`, found = merged.get(key)
-    if (!found) merged.set(key, { ...h, category: 'investment' })
+    if (!found) merged.set(key, { ...h })
     else {
       const quantity = found.quantity + h.quantity
-      merged.set(key, { ...found, displayName: found.displayName ?? h.displayName, quantity, averagePrice: safe((found.quantity * found.averagePrice + h.quantity * h.averagePrice) / quantity), currentPrice: h.currentPrice, previousClose: h.previousClose })
+      const { transactionPositions: existingPositions, ...base } = found
+      delete base.transactionPosition
+      const legacyPosition = (holding: Holding): TransactionPosition => ({ quantity: holding.quantity, averagePrice: holding.averagePrice, totalBuyQuantity: holding.quantity, totalSellQuantity: 0, totalBuyAmount: holding.quantity * holding.averagePrice, realizedProfit: 0, realizedProfitKrw: 0 })
+      const positions = { ...existingPositions, [found.category]: found.transactionPosition ?? existingPositions?.[found.category] ?? legacyPosition(found), [h.category]: h.transactionPosition ?? legacyPosition(h) }
+      merged.set(key, { ...base, displayName: found.displayName ?? h.displayName, quantity, averagePrice: safe((found.quantity * found.averagePrice + h.quantity * h.averagePrice) / quantity), currentPrice: h.currentPrice, previousClose: h.previousClose, transactionPositions: Object.keys(positions).length ? positions : undefined })
     }
   })
   return [...merged.values()]

@@ -5,6 +5,10 @@ const amount = (value: number | undefined) => Number.isFinite(value) && value! >
 const sorted = (transactions: Transaction[]) => [...transactions].sort((a, b) => a.date.localeCompare(b.date) || (a.type === 'opening' ? -1 : b.type === 'opening' ? 1 : 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 export const transactionKey = (transaction: Pick<Transaction, 'holdingId' | 'market' | 'symbol' | 'category'>) => transaction.holdingId ?? `${transaction.market}:${transaction.symbol}:${transaction.category}`
 
+/** Returns every purpose's transaction for a single listed security. */
+export const transactionsForSymbol = (transactions: Transaction[], market: Transaction['market'], symbol: string) =>
+  transactions.filter(transaction => transaction.market === market && transaction.symbol === symbol)
+
 export function calculatePositionFromTransactions(transactions: Transaction[]): TransactionPosition {
   let quantity = 0, averagePrice = 0, averageCostKrw: number | undefined = 0
   let totalBuyQuantity = 0, totalSellQuantity = 0, totalBuyAmount = 0, totalBuyAmountKrw: number | undefined = 0, realizedProfit = 0, realizedProfitKrw: number | undefined = 0
