@@ -10,7 +10,7 @@ const makeTransaction = (holding: Holding, type: Transaction['type'], fxRate?: n
   currency: holding.currency ?? (holding.market === 'US' ? 'USD' : 'KRW'), fxRate: holding.market === 'US' ? fxRate : undefined, memo: '', createdAt: new Date().toISOString(),
 })
 
-export function TransactionForm({ item, holdings, openingHolding, defaultFxRate, onSave, onClose }: { item?: Transaction; holdings: Holding[]; openingHolding?: Holding; defaultFxRate?: number; onSave: (transaction: Transaction) => string | null; onClose: () => void }) {
+export function TransactionForm({ item, holdings, openingHolding, defaultFxRate, onSave, onClose }: { item?: Transaction; holdings: Holding[]; openingHolding?: Holding; defaultFxRate?: number; onSave: (transaction: Transaction) => Promise<string | null>; onClose: () => void }) {
   const initialHolding = useMemo(() => openingHolding ?? holdings.find(holding => holding.id === item?.holdingId) ?? holdings[0], [holdings, item, openingHolding])
   const initialForm = () => item ?? (initialHolding ? makeTransaction(initialHolding, openingHolding ? 'opening' : 'buy', defaultFxRate) : null)
   const [form, setForm] = useState<Transaction | null>(initialForm)
@@ -25,11 +25,14 @@ export function TransactionForm({ item, holdings, openingHolding, defaultFxRate,
     if (!holding) return
     setForm(current => current && ({ ...current, holdingId: holding.id, market: holding.market, exchange: holding.exchange, symbol: holding.symbol, name: holding.displayName ?? holding.name, category: holding.category, currency: holding.currency ?? (holding.market === 'US' ? 'USD' : 'KRW'), price: holding.averagePrice, fxRate: holding.market === 'US' ? current.fxRate || defaultFxRate : undefined }))
   }
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!form.quantity || !form.price || !form.date) return setError('거래일, 수량, 체결가격을 올바르게 입력해 주세요.')
     if (form.currency === 'USD' && form.fxRate !== undefined && form.fxRate <= 0) return setError('환율은 0보다 커야 합니다.')
-    const result = onSave({ ...form, memo: form.memo?.trim() || undefined })
+    const result = await onSave({
+  ...form,
+  memo: form.memo?.trim() || undefined,
+})
     if (result) return setError(result)
     onClose()
   }

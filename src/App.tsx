@@ -47,7 +47,15 @@ export default function App() {
     if (hasTransactions) removeForHoldings(originals)
     originals.forEach(item => remove(item.id)); setSelected(null)
   }
-  const deleteTransaction = (transaction: Transaction) => { if (!confirm(`${transaction.name} 거래를 삭제할까요?`)) return; const error = removeTransaction(transaction.id); if (error) alert(error) }
+  const deleteTransaction = async (transaction: Transaction) => {
+  if (!confirm(`${transaction.name} 거래를 삭제할까요?`)) return
+
+  const error = await removeTransaction(transaction.id)
+
+  if (error) {
+    alert(error)
+  }
+}
   const selectedOriginals = selected ? holdings.filter(item => item.market === selected.market && item.symbol === selected.symbol && (filter === 'all' || item.category === selected.category)) : []
   const openingCandidatesForSelected = selectedOriginals.filter(holding => !hasOpeningTransaction(transactions, holding))
   const openTransactions = () => { if (selected) setTransactionScope({ market: selected.market, symbol: selected.symbol, name: selected.displayName ?? selected.name }); setSelected(null); setView('transactions') }
