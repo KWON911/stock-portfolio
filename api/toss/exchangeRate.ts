@@ -6,7 +6,7 @@ let lastSuccessfulUsdKrwUpdatedAt: string | undefined
 
 const numberOf = (value: unknown) => { const number = Number(value); return Number.isFinite(number) && number > 0 ? number : undefined }
 const asRecord = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
-const fallbackRate = () => numberOf(process.env.TOSS_USDKRW_FALLBACK) ?? numberOf(process.env.KIS_USDKRW_FALLBACK)
+const fallbackRate = () => numberOf(process.env.TOSS_USDKRW_FALLBACK)
 
 function findUsdKrwRate(body: unknown): number | undefined {
   const root = asRecord(body)

@@ -5,8 +5,10 @@ import type { Holding } from '../types/portfolio'
 const CACHE_KEY = 'my-stock-portfolio-price-cache-v2'
 const LEGACY_CACHE_KEY = 'my-stock-portfolio-price-cache-v1'
 const MANUAL_REFRESH_KEY = 'my-stock-portfolio-last-manual-refresh'
-const AUTO_REFRESH_ENABLED = false
+const AUTO_REFRESH_ENABLED = true
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60_000
 const MANUAL_REFRESH_COOLDOWN_MS = 5 * 60_000
+type RefreshSource = 'auto' | 'manual'
 
 function normalizeSnapshot(value: unknown): PriceSnapshot | null {
   if (!value || typeof value !== 'object') return null
@@ -24,24 +26,40 @@ export function useMarketPrices(holdings: Holding[]) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const running = useRef(false)
-  const refresh = useCallback(async () => {
-    if (running.current || holdings.length === 0) return
-    const lastManual = Number(localStorage.getItem(MANUAL_REFRESH_KEY) ?? 0)
-    if (lastManual && Date.now() - lastManual < MANUAL_REFRESH_COOLDOWN_MS) { setError('잠시 후 다시 갱신할 수 있습니다.'); return }
-    localStorage.setItem(MANUAL_REFRESH_KEY, String(Date.now()))
+  const cachedUpdatedAt = snapshot?.updatedAt ? Date.parse(snapshot.updatedAt) : 0
+  const lastSuccessfulRefreshAt = useRef(Number.isFinite(cachedUpdatedAt) ? cachedUpdatedAt : 0)
+  const refresh = useCallback(async (source: RefreshSource = 'manual') => {
+    if (running.current || holdings.length === 0) return false
+    if (source === 'auto' && document.visibilityState !== 'visible') return false
+    if (source === 'manual') {
+      const lastManual = Number(localStorage.getItem(MANUAL_REFRESH_KEY) ?? 0)
+      if (lastManual && Date.now() - lastManual < MANUAL_REFRESH_COOLDOWN_MS) { setError('잠시 후 다시 갱신할 수 있습니다.'); return false }
+      localStorage.setItem(MANUAL_REFRESH_KEY, String(Date.now()))
+    }
     running.current = true; setLoading(true); setError(null)
-    try { const next = await getPortfolioPrices(holdings); setSnapshot(next); sessionStorage.setItem(CACHE_KEY, JSON.stringify(next)) }
-    catch { setError('일부 시세를 업데이트하지 못했습니다.') }
-    finally { running.current = false; setLoading(false) }
+    try {
+      const next = await getPortfolioPrices(holdings)
+      setSnapshot(next)
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(next))
+      if (!next.partial) lastSuccessfulRefreshAt.current = Date.now()
+      return true
+    } catch {
+      setError('일부 시세를 업데이트하지 못했습니다.')
+      return false
+    } finally { running.current = false; setLoading(false) }
   }, [holdings])
   useEffect(() => {
-    if (!AUTO_REFRESH_ENABLED) return
-    void refresh()
-    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh() }, 60_000)
-    const onVisible = () => { if (document.visibilityState === 'visible') void refresh() }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisible) }
-  }, [refresh])
+    if (!AUTO_REFRESH_ENABLED || holdings.length === 0) return
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void refresh('auto') }
+    refreshWhenVisible()
+    const interval = window.setInterval(refreshWhenVisible, AUTO_REFRESH_INTERVAL_MS)
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastSuccessfulRefreshAt.current >= AUTO_REFRESH_INTERVAL_MS) refreshWhenVisible()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibilityChange) }
+  }, [holdings.length, refresh])
   const hydrated = useMemo(() => holdings.map(holding => {
     const price = snapshot?.prices[priceKey(holding)]
     return price ? { ...holding, ...price, priceStatus: price.status, priceUpdatedAt: price.updatedAt } : { ...holding, priceStatus: 'fallback' as const }
