@@ -1,46 +1,59 @@
-import { getUsdKrwRate } from './kis/exchangeRate.js'
-import { getDomesticQuote, getOverseasQuote, type ApiHolding } from './kis/quotes.js'
+import { getUsdKrwRate } from './toss/exchangeRate.js'
+import { TossApiError } from './toss/client.js'
+import { getTossQuotes, type ApiHolding } from './toss/quotes.js'
+import { loadLocalTossEnv } from './loadLocalTossEnv.js'
 
 type RequestLike = { method?: string; body?: { holdings?: ApiHolding[] } | string }
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void }
 const identifier = (holding: ApiHolding) => `${holding.market}:${holding.exchange ?? ''}:${holding.symbol}`
-const runtimeEnv = ((globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {})
 const lastSuccessfulPrices = new Map<string, { currentPrice: number; previousClose: number; currency: 'KRW' | 'USD'; status: 'cached'; updatedAt?: string }>()
 
-async function concurrent<T>(jobs: (() => Promise<T>)[], limit = 3) {
-  const results: PromiseSettledResult<T>[] = []; let cursor = 0
-  const worker = async () => { while (cursor < jobs.length) { const index = cursor++; results[index] = await Promise.resolve(jobs[index]()).then(value => ({ status: 'fulfilled', value }) as PromiseFulfilledResult<T>).catch(reason => ({ status: 'rejected', reason }) as PromiseRejectedResult) } }
-  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker)); return results
-}
+const failureReason = (error?: TossApiError) => error?.status === 401 ? 'quote_unauthorized' : error?.status === 403 ? 'quote_forbidden' : error?.status === 429 ? 'quote_rate_limited' : error?.status && error.status >= 500 ? 'quote_provider_unavailable' : 'quote_request_failed'
 
 export default async function handler(req: RequestLike, res: ResponseLike) {
   res.setHeader('Cache-Control', 'no-store')
+  loadLocalTossEnv()
   if (req.method !== 'POST') { res.status(405); return res.json({ error: 'Method not allowed' }) }
   const body: unknown = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
   const raw = Array.isArray((body as { holdings?: unknown })?.holdings) ? (body as { holdings: unknown[] }).holdings : []
   const isHolding = (value: unknown): value is ApiHolding => typeof value === 'object' && value !== null && ((value as ApiHolding).market === 'KR' || (value as ApiHolding).market === 'US') && typeof (value as ApiHolding).symbol === 'string'
   const holdings = [...new Map(raw.filter(isHolding).map(holding => [identifier(holding), holding])).values()]
-  if (!runtimeEnv.KIS_APP_KEY || !runtimeEnv.KIS_APP_SECRET) { res.status(503); return res.json({ error: 'KIS credentials are not configured' }) }
-  const jobs = holdings.map(holding => async () => ({ id: identifier(holding), quote: holding.market === 'KR' ? await getDomesticQuote(holding.symbol) : await getOverseasQuote(holding) }))
-  const settled = await concurrent(jobs)
+  const hasClientId = Boolean(process.env.TOSS_CLIENT_ID)
+  const hasClientSecret = Boolean(process.env.TOSS_CLIENT_SECRET)
+  console.info('[Toss] credential configuration', { 'TOSS_CLIENT_ID configured': hasClientId, 'TOSS_CLIENT_SECRET configured': hasClientSecret })
+  if (!hasClientId || !hasClientSecret) {
+    console.warn('[Toss] request blocked', { stage: 'oauth_token', endpoint: '/oauth2/token', status: 503, apiCode: 'credentials_not_configured' })
+    res.status(503)
+    return res.json({ error: 'Toss credentials are not configured', reason: 'credentials_not_configured' })
+  }
+  const batch = await getTossQuotes(holdings)
   const prices: Record<string, unknown> = {}
-  const failures: { key: string; market: ApiHolding['market']; symbol: string; reason: 'quote_request_failed' }[] = []
-  const exchangeRateCandidates: ApiHolding[] = []
-  settled.forEach((result, index) => {
-    const holding = holdings[index]
-    if (result.status === 'fulfilled') {
-      prices[result.value.id] = result.value.quote
-      lastSuccessfulPrices.set(result.value.id, { ...result.value.quote, status: 'cached' })
-      if (holding.market === 'US') exchangeRateCandidates.push(holding)
+  const failures: { key: string; market: ApiHolding['market']; symbol: string; reason: string; retryAfter?: string | null; apiCode?: string; apiMessage?: string }[] = []
+  let liveTossQuoteCount = 0
+  holdings.forEach(holding => {
+    const key = identifier(holding)
+    const quote = batch.quotes.get(holding.symbol.toUpperCase())
+    if (quote) {
+      prices[key] = quote
+      lastSuccessfulPrices.set(key, { ...quote, status: 'cached' })
+      liveTossQuoteCount += 1
       console.info('[quote] live', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
       return
     }
-    const key = identifier(holding), cached = lastSuccessfulPrices.get(key)
+    const cached = lastSuccessfulPrices.get(key)
     if (cached) prices[key] = cached
-    else failures.push({ key, market: holding.market, symbol: holding.symbol, reason: 'quote_request_failed' })
-    console.warn('[quote] failed', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
+    else {
+      const error = batch.failures.get(holding.symbol.toUpperCase())
+      failures.push({ key, market: holding.market, symbol: holding.symbol, reason: failureReason(error), retryAfter: error?.retryAfter, apiCode: error?.apiCode, apiMessage: error?.apiMessage })
+      console.warn('[Toss] quote failed', { stage: 'quote', endpoint: '/api/v1/prices', market: holding.market, symbol: holding.symbol, exchange: holding.exchange, status: error?.status, apiCode: error?.apiCode, apiMessage: error?.apiMessage, retryAfter: error?.retryAfter })
+    }
   })
-  const rate = await getUsdKrwRate(exchangeRateCandidates)
+  const rate = holdings.some(holding => holding.market === 'US') ? await getUsdKrwRate() : null
+  if (liveTossQuoteCount > 0) {
+    console.info('[Market Data] provider=toss')
+    console.info(`[Market Data] quotes=${liveTossQuoteCount}`)
+  }
+  if (rate?.source === 'live') console.info('[Market Data] exchangeRate=toss')
   res.status(200)
-  return res.json({ prices, exchangeRates: rate ? { USDKRW: { rate: rate.rate, status: rate.source === 'cache' ? 'cached' : rate.source, updatedAt: rate.updatedAt } } : {}, updatedAt: new Date().toISOString(), partial: settled.some(result => result.status === 'rejected'), failures })
+  return res.json({ provider: liveTossQuoteCount > 0 ? 'toss' : undefined, prices, exchangeRates: rate ? { USDKRW: { rate: rate.rate, status: rate.source === 'cache' ? 'cached' : rate.source, updatedAt: rate.updatedAt } } : {}, updatedAt: new Date().toISOString(), partial: failures.length > 0, failures })
 }

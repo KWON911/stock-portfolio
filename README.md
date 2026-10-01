@@ -7,7 +7,7 @@ npm install
 npm run dev
 ```
 
-Vite 개발 서버는 화면만 제공합니다. KIS 서버 API까지 함께 실행하려면 Vercel CLI를 사용합니다.
+Vite 개발 서버는 화면만 제공합니다. 토스증권 서버 API까지 함께 실행하려면 Vercel CLI를 사용합니다.
 
 ```bash
 npx vercel dev
@@ -18,18 +18,17 @@ npx vercel dev
 `.env.example`을 `.env.local`로 복사하고 아래 값을 설정합니다. 절대 `VITE_` 접두사를 사용하지 않습니다.
 
 ```bash
-KIS_APP_KEY=
-KIS_APP_SECRET=
-KIS_ENV=production
+TOSS_CLIENT_ID=
+TOSS_CLIENT_SECRET=
 ```
 
 서버 API는 `api/prices.ts`이며, 브라우저는 이 엔드포인트만 호출합니다. APP_SECRET과 access token은 프런트엔드 코드 및 API 응답에 포함되지 않습니다.
 
-KIS의 계좌 없이 쓸 수 있는 USD/KRW 단일 현재환율 공개 API 사양은 공식 예제로 확인하지 못했습니다. 현재 `api/kis/exchangeRate.ts`는 공급자를 분리하고, 필요 시 `KIS_USDKRW_FALLBACK` 값을 사용합니다. 공식 환율 엔드포인트가 확인되면 해당 파일만 교체하면 됩니다.
+서버 API는 토스증권 OAuth Client Credentials로 access token을 발급받은 뒤 현재가와 USD/KRW 환율을 조회합니다. 환율 API가 일시적으로 실패할 때만 선택적으로 `TOSS_USDKRW_FALLBACK` 값을 설정할 수 있습니다.
 # Token and refresh policy
 
 - Market prices are refreshed only by the user pressing **시세 갱신**. Automatic initial, interval, and visibility refresh are disabled by default.
-- A successful or failed manual request starts a five-minute client cooldown to avoid repeated KIS requests.
-- KIS access tokens stay server-side. A hot Vercel instance reuses its memory cache; when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured, the token is also persisted under a server-only Redis key.
+- A successful or failed manual request starts a five-minute client cooldown to avoid repeated Toss API requests.
+- Toss access tokens stay server-side. A hot Vercel instance reuses its memory cache; when `UPSTASH_REDIS_REST_KV_REST_API_URL` and `UPSTASH_REDIS_REST_KV_REST_API_TOKEN` are configured, the token is also persisted under a server-only Redis key. The older `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` names remain compatible fallbacks.
 - Without those optional Upstash variables the app remains functional in memory-only mode, but a Vercel cold start can require a new token.
 
