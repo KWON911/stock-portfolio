@@ -67,6 +67,10 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
     }
     console.warn('[KIS] quote failed', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
   })
+  // The USD/KRW detail request is also subject to KIS's per-second quota.
+  // Space it from the final overseas quote; exchangeRate retains its one-time
+  // retry as protection for provider-side transient limits.
+  if (exchangeRateCandidates.length) await pause(KIS_REQUEST_INTERVAL_MS)
   const rate = await getUsdKrwRate(exchangeRateCandidates)
   if (liveKisQuoteCount > 0) {
     console.info('[Market Data] provider=kis')
