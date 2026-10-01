@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { getUsdKrwRate } from './toss/exchangeRate.js'
 import { TossApiError } from './toss/client.js'
 import { getTossQuotes, type ApiHolding } from './toss/quotes.js'

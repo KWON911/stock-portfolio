@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { TossApiError, tossGet } from './client.js'
 
 export type ExchangeRateResult = { rate: number; source: 'live' | 'cache' | 'fallback'; updatedAt?: string }

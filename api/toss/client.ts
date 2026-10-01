@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 type TokenResponse = { access_token?: string; expires_in?: number }
 type TossStage = 'oauth_token' | 'quote' | 'exchange_rate'
 type TossErrorDetails = { code?: string; message?: string }
