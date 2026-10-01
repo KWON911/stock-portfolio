@@ -8,18 +8,17 @@ type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unkno
 const identifier = (holding: ApiHolding) => `${holding.market}:${holding.exchange ?? ''}:${holding.symbol}`
 const lastSuccessfulPrices = new Map<string, { currentPrice: number; previousClose: number; currency: 'KRW' | 'USD'; status: 'cached'; updatedAt?: string }>()
 
-async function concurrent<T>(jobs: (() => Promise<T>)[], limit = 3) {
+const KIS_REQUEST_INTERVAL_MS = 1_100
+const pause = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds))
+
+async function sequential<T>(jobs: (() => Promise<T>)[]) {
   const results: PromiseSettledResult<T>[] = []
-  let cursor = 0
-  const worker = async () => {
-    while (cursor < jobs.length) {
-      const index = cursor++
-      results[index] = await Promise.resolve(jobs[index]())
-        .then(value => ({ status: 'fulfilled', value }) as PromiseFulfilledResult<T>)
-        .catch(reason => ({ status: 'rejected', reason }) as PromiseRejectedResult)
-    }
+  for (let index = 0; index < jobs.length; index += 1) {
+    results[index] = await Promise.resolve(jobs[index]())
+      .then(value => ({ status: 'fulfilled', value }) as PromiseFulfilledResult<T>)
+      .catch(reason => ({ status: 'rejected', reason }) as PromiseRejectedResult)
+    if (index < jobs.length - 1) await pause(KIS_REQUEST_INTERVAL_MS)
   }
-  await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker))
   return results
 }
 
@@ -42,7 +41,10 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
     holding,
     quote: holding.market === 'KR' ? await getDomesticQuote(holding.symbol) : await getOverseasQuote(holding),
   }))
-  const settled = await concurrent(jobs)
+  // KIS can return EGW00201 when different quotation endpoints are hit in the
+  // same second. Keep this provider's quote calls spaced without changing the
+  // token cache or adding another provider fallback.
+  const settled = await sequential(jobs)
   const prices: Record<string, unknown> = {}
   const failures: { key: string; market: ApiHolding['market']; symbol: string; reason: 'quote_request_failed' }[] = []
   const exchangeRateCandidates: ApiHolding[] = []
