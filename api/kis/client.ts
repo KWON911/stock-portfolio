@@ -1,6 +1,9 @@
 /// <reference types="node" />
 
+import { loadLocalKisEnv } from '../loadLocalKisEnv.js'
 import type { StoredToken, TokenStore } from './tokenStore.js'
+
+loadLocalKisEnv()
 
 type KisResponse = { rt_cd?: string; msg_cd?: string; msg1?: string; output?: Record<string, unknown> }
 type TokenResponse = { access_token?: string; expires_in?: number }

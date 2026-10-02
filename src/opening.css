@@ -1,1 +1,1 @@
-.opening-holding{margin:-8px 0 17px;padding:11px 12px;border-radius:9px;background:#eef3f9;color:#47617f;font-size:13px;line-height:1.5}.transaction-sheet input[readonly]{background:#f4f7fb;color:#53657d}@media(max-width:760px){.detail footer button{min-width:calc(50% - 4px)}.detail footer button:first-child{flex-basis:100%}}
+.opening-holding{margin:-8px 0 17px;padding:11px 12px;border-radius:var(--radius-control);background:#eef3f9;color:#47617f;font-size:13px;line-height:1.5}.transaction-sheet input[readonly]{background:#f4f7fb;color:#53657d}

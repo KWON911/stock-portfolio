@@ -12,6 +12,7 @@ import './mobile.css'
 import './app-shell.css'
 import './treemap.css'
 import './treemap-gutter.css'
+import './ui-consistency.css'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthGate>
