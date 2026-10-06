@@ -10,7 +10,7 @@ function parseHolding(body: unknown): ApiHolding | null {
   if (!holding || typeof holding !== 'object') return null
   const value = holding as ApiHolding
   if ((value.market !== 'KR' && value.market !== 'US') || typeof value.symbol !== 'string' || !value.symbol.trim()) return null
-  if (value.market === 'KR' && !/^\d{6}$/.test(value.symbol.trim())) return null
+  if (value.market === 'KR' && !/^[A-Z0-9]{6}$/i.test(value.symbol.trim())) return null
   if (value.market === 'US' && value.exchange && !['NASDAQ', 'NYSE', 'AMEX'].includes(value.exchange)) return null
   return { market: value.market, symbol: value.symbol.trim().toUpperCase(), exchange: value.market === 'US' ? value.exchange ?? 'NASDAQ' : undefined }
 }
