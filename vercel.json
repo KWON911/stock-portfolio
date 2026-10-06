@@ -1,1 +1,8 @@
-{ "functions": { "api/**/*.ts": { "maxDuration": 10 } } }
+{
+  "functions": {
+    "api/prices.ts": { "maxDuration": 60 },
+    "api/holding-quote.ts": { "maxDuration": 10 },
+    "api/loadLocalKisEnv.ts": { "maxDuration": 10 },
+    "api/kis/*.ts": { "maxDuration": 10 }
+  }
+}

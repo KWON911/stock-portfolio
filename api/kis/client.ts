@@ -157,7 +157,12 @@ export async function kisGet(path: string, trId: string, params: Record<string, 
       msgCode: body.msg_cd,
       message: body.msg1,
     })
-    throw new Error(body.msg1 || 'KIS quotation request failed')
+    // Preserve safe response metadata for callers to distinguish provider
+    // failures. Token issuance and cache behavior remain unchanged.
+    throw Object.assign(new Error('KIS quotation request failed'), {
+      upstreamStatus: response.status,
+      apiCode: body.msg_cd,
+    })
   }
   return body.output
 }

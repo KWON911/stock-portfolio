@@ -14,6 +14,8 @@ export interface Transaction {
   date: string
   quantity: number
   price: number
+  /** Total opening cost in transaction currency. Decimal string preserves DB numeric. */
+  openingCostBasis?: string | number
   fee?: number
   tax?: number
   currency: Currency
@@ -24,6 +26,13 @@ export interface Transaction {
 
 export interface TransactionPosition {
   quantity: number
+  costBasis: number
+  /** Exact rational source; numeric fields are display-compatible projections. */
+  costBasisExact: string
+  costBasisKrw?: number
+  costBasisKrwExact?: string
+  realizedProfitExact?: string
+  realizedProfitKrwExact?: string
   averagePrice: number
   averageCostKrw?: number
   openingQuantity: number

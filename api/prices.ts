@@ -2,11 +2,12 @@
 
 import { getUsdKrwRate } from './kis/exchangeRate.js'
 import { getDomesticQuote, getOverseasQuote, type ApiHolding } from './kis/quotes.js'
+import { isCompleteQuote } from '../src/utils/quotePair.js'
 
 type RequestLike = { method?: string; body?: { holdings?: ApiHolding[] } | string }
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void }
 const identifier = (holding: ApiHolding) => `${holding.market}:${holding.exchange ?? ''}:${holding.symbol}`
-const lastSuccessfulPrices = new Map<string, { currentPrice: number; previousClose: number; currency: 'KRW' | 'USD'; status: 'cached'; updatedAt?: string }>()
+const lastSuccessfulPrices = new Map<string, { symbol: string; currentPrice: number; previousClose: number; currency: 'KRW' | 'USD'; status: 'cached'; updatedAt?: string }>()
 
 const KIS_REQUEST_INTERVAL_MS = 1_100
 const pause = (milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds))
@@ -36,11 +37,11 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
     return res.json({ error: 'KIS credentials are not configured', reason: 'credentials_not_configured' })
   }
 
-  const jobs = holdings.map(holding => async () => ({
-    id: identifier(holding),
-    holding,
-    quote: holding.market === 'KR' ? await getDomesticQuote(holding.symbol) : await getOverseasQuote(holding),
-  }))
+  const jobs = holdings.map(holding => async () => {
+    const quote = holding.market === 'KR' ? await getDomesticQuote(holding.symbol) : await getOverseasQuote(holding)
+    if (!isCompleteQuote(quote) || quote.currency !== (holding.market === 'KR' ? 'KRW' : 'USD')) throw new Error('Incomplete quotation pair')
+    return { id: identifier(holding), holding, quote }
+  })
   // KIS can return EGW00201 when different quotation endpoints are hit in the
   // same second. Keep this provider's quote calls spaced without changing the
   // token cache or adding another provider fallback.
@@ -54,14 +55,14 @@ export default async function handler(req: RequestLike, res: ResponseLike) {
     const key = identifier(holding)
     if (result.status === 'fulfilled') {
       prices[key] = result.value.quote
-      lastSuccessfulPrices.set(key, { ...result.value.quote, status: 'cached' })
+      lastSuccessfulPrices.set(key, { ...result.value.quote, symbol: holding.symbol, status: 'cached' })
       liveKisQuoteCount += 1
       if (holding.market === 'US') exchangeRateCandidates.push(holding)
       console.info('[quote] live', { market: holding.market, symbol: holding.symbol, exchange: holding.exchange })
       return
     }
     const cached = lastSuccessfulPrices.get(key)
-    if (cached) prices[key] = cached
+    if (cached && cached.symbol === holding.symbol && isCompleteQuote(cached) && cached.currency === (holding.market === 'KR' ? 'KRW' : 'USD')) prices[key] = cached
     else {
       failures.push({ key, market: holding.market, symbol: holding.symbol, reason: 'quote_request_failed' })
     }

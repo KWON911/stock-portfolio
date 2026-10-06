@@ -21,6 +21,7 @@ import type { CalculatedHolding, Filter, Holding } from './types/portfolio'
 import type { Transaction } from './types/transaction'
 import { applyTransactionsToHoldings, hasOpeningTransaction } from './utils/transactionCalculations'
 import { calculateHoldings } from './utils/portfolioCalculations'
+import { findSelectedHolding } from './utils/marketSnapshot'
 
 export default function App() {
   const { holdings, save, remove, reset } = usePortfolio()
@@ -28,7 +29,7 @@ export default function App() {
   const { theme, setTheme } = useTheme()
   const [filter, setFilter] = useState<Filter>('all')
   const [view, setView] = useState<AppView>('dashboard')
-  const [selected, setSelected] = useState<CalculatedHolding | null>(null)
+  const [selectedHoldingId, setSelectedHoldingId] = useState<string | null>(null)
   const [form, setForm] = useState<Holding | null | undefined>(undefined)
   const [transactionForm, setTransactionForm] = useState<Transaction | null | undefined>(undefined)
   const [openingHolding, setOpeningHolding] = useState<Holding | undefined>(undefined)
@@ -37,6 +38,9 @@ export default function App() {
   const transactionHoldings = useMemo(() => applyTransactionsToHoldings(holdings, transactions), [holdings, transactions])
   const market = useMarketPrices(transactionHoldings)
   const items = useMemo(() => calculateHoldings(market.holdings, filter, market.exchangeRate?.rate), [filter, market.exchangeRate, market.holdings])
+  const selected = findSelectedHolding(items, selectedHoldingId)
+  const setSelected = (holding: CalculatedHolding | null) => setSelectedHoldingId(holding?.id ?? null)
+  if (selectedHoldingId && !selected) setSelectedHoldingId(null)
   const updatedText = market.updatedAt ? new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(market.updatedAt)) : null
   const changeView = (next: AppView) => { if (next === 'transactions' && view !== 'transactions') setTransactionScope(undefined); setSelected(null); setView(next) }
   const originalsFor = (holding: Holding) => filter === 'all' ? holdings.filter(item => item.symbol === holding.symbol && item.market === holding.market) : holdings.filter(item => item.id === holding.id)

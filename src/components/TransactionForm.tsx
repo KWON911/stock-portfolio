@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Holding } from '../types/portfolio'
 import type { Transaction } from '../types/transaction'
+import { preserveOpeningCost } from '../utils/openingCostPolicy'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const makeTransaction = (holding: Holding, type: Transaction['type'], fxRate?: number): Transaction => ({
@@ -29,10 +30,10 @@ export function TransactionForm({ item, holdings, openingHolding, defaultFxRate,
     event.preventDefault()
     if (!form.quantity || !form.price || !form.date) return setError('거래일, 수량, 체결가격을 올바르게 입력해 주세요.')
     if (form.currency === 'USD' && form.fxRate !== undefined && form.fxRate <= 0) return setError('환율은 0보다 커야 합니다.')
-    const result = await onSave({
+    const result = await onSave(preserveOpeningCost(item, {
   ...form,
   memo: form.memo?.trim() || undefined,
-})
+}))
     if (result) return setError(result)
     onClose()
   }

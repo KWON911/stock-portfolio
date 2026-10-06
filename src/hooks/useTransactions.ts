@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient'
 import type { Holding } from '../types/portfolio'
 import type { Transaction } from '../types/transaction'
 import { validateTransactionSequence } from '../utils/transactionCalculations'
+import { preserveOpeningCost } from '../utils/openingCostPolicy'
 
 type TransactionRow = {
   id: string
@@ -17,6 +18,7 @@ type TransactionRow = {
   transaction_date: string
   quantity: number
   price: number
+  opening_cost_basis: string | number | null
   fee: number | null
   tax: number | null
   currency: 'KRW' | 'USD'
@@ -25,7 +27,7 @@ type TransactionRow = {
   created_at: string
 }
 
-function fromRow(row: TransactionRow): Transaction {
+export function transactionFromRow(row: TransactionRow): Transaction {
   return {
     id: row.id,
     holdingId: row.holding_id ?? undefined,
@@ -38,6 +40,7 @@ function fromRow(row: TransactionRow): Transaction {
     date: row.transaction_date,
     quantity: row.quantity,
     price: row.price,
+    openingCostBasis: row.opening_cost_basis ?? undefined,
     fee: row.fee ?? undefined,
     tax: row.tax ?? undefined,
     currency: row.currency,
@@ -56,7 +59,8 @@ export function useTransactions() {
     async function load() {
       const { data, error } = await supabase
         .from('portfolio_transactions')
-        .select('*')
+        // Cast numeric to text BEFORE JSON parsing so fractional exact amounts survive.
+        .select('id,user_id,holding_id,market,exchange,symbol,name,category,transaction_type,transaction_date,quantity,price,fee,tax,currency,fx_rate,memo,created_at,opening_cost_basis::text')
         .order('transaction_date', { ascending: true })
         .order('created_at', { ascending: true })
 
@@ -68,7 +72,7 @@ export function useTransactions() {
       }
 
       setTransactions(
-        (data ?? []).map(row => fromRow(row as TransactionRow)),
+        (data ?? []).map(row => transactionFromRow(row as TransactionRow)),
       )
     }
 
@@ -80,6 +84,12 @@ export function useTransactions() {
   }, [])
 
   const save = async (transaction: Transaction): Promise<string | null> => {
+    // Omitted field from an older caller is not an intentional clear. The form
+    // sends an explicit undefined when position edits request NULL fallback.
+    const original = transactions.find(item => item.id === transaction.id)
+    if (original && !Object.prototype.hasOwnProperty.call(transaction, 'openingCostBasis')) {
+      transaction = preserveOpeningCost(original, transaction)
+    }
     const next = transactions.some(item => item.id === transaction.id)
       ? transactions.map(item =>
           item.id === transaction.id ? transaction : item,
@@ -114,6 +124,7 @@ export function useTransactions() {
       transaction_date: transaction.date,
       quantity: transaction.quantity,
       price: transaction.price,
+      opening_cost_basis: transaction.type === 'opening' && transaction.openingCostBasis != null ? String(transaction.openingCostBasis) : null,
       fee: transaction.fee ?? null,
       tax: transaction.tax ?? null,
       currency: transaction.currency,

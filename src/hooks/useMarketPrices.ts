@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getPortfolioPrices, priceKey, type PriceSnapshot } from '../services/priceService'
+import { getPortfolioPrices, type PriceSnapshot } from '../services/priceService'
 import type { Holding } from '../types/portfolio'
+import { hydrateMarketHolding, mergePriceSnapshot } from '../utils/marketSnapshot'
+import { isCompleteQuote } from '../utils/quotePair'
 
 const CACHE_KEY = 'my-stock-portfolio-price-cache-v2'
 const LEGACY_CACHE_KEY = 'my-stock-portfolio-price-cache-v1'
@@ -14,7 +16,7 @@ function normalizeSnapshot(value: unknown): PriceSnapshot | null {
   if (!value || typeof value !== 'object') return null
   const snapshot = value as PriceSnapshot & { exchangeRates?: { USDKRW?: number | PriceSnapshot['exchangeRates']['USDKRW'] } }
   if (!snapshot.prices || !snapshot.updatedAt) return null
-  const prices = Object.fromEntries(Object.entries(snapshot.prices).map(([key, price]) => [key, { ...price, status: price.status ?? 'cached' }]))
+  const prices = Object.fromEntries(Object.entries(snapshot.prices).filter(([, price]) => isCompleteQuote(price)).map(([key, price]) => [key, { ...price, status: 'cached' as const }]))
   const legacyRate = typeof snapshot.exchangeRates?.USDKRW === 'number' ? snapshot.exchangeRates.USDKRW : undefined
   const rate = legacyRate ? { rate: legacyRate, status: 'cached' as const, updatedAt: snapshot.updatedAt } : snapshot.exchangeRates?.USDKRW
   return { ...snapshot, prices, exchangeRates: rate ? { USDKRW: rate } : {} }
@@ -23,6 +25,7 @@ function cachedSnapshot(): PriceSnapshot | null { try { const raw = sessionStora
 
 export function useMarketPrices(holdings: Holding[]) {
   const [snapshot, setSnapshot] = useState<PriceSnapshot | null>(cachedSnapshot)
+  const snapshotRef = useRef(snapshot)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const running = useRef(false)
@@ -39,8 +42,10 @@ export function useMarketPrices(holdings: Holding[]) {
     running.current = true; setLoading(true); setError(null)
     try {
       const next = await getPortfolioPrices(holdings)
-      setSnapshot(next)
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(next))
+      const merged = mergePriceSnapshot(snapshotRef.current, next)
+      snapshotRef.current = merged
+      setSnapshot(merged)
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(merged))
       if (!next.partial) lastSuccessfulRefreshAt.current = Date.now()
       return true
     } catch {
@@ -60,9 +65,6 @@ export function useMarketPrices(holdings: Holding[]) {
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibilityChange) }
   }, [holdings.length, refresh])
-  const hydrated = useMemo(() => holdings.map(holding => {
-    const price = snapshot?.prices[priceKey(holding)]
-    return price ? { ...holding, ...price, priceStatus: price.status, priceUpdatedAt: price.updatedAt } : { ...holding, priceStatus: 'fallback' as const }
-  }), [holdings, snapshot])
+  const hydrated = useMemo(() => holdings.map(holding => hydrateMarketHolding(holding, snapshot)), [holdings, snapshot])
   return { holdings: hydrated, exchangeRate: snapshot?.exchangeRates.USDKRW, updatedAt: snapshot?.updatedAt, loading, error, refresh, failures: snapshot?.failures ?? [], autoRefreshEnabled: AUTO_REFRESH_ENABLED }
 }

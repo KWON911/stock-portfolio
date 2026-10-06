@@ -7,11 +7,13 @@ export type Filter = 'all' | Category
 export interface Holding {
   id: string; symbol: string; name: string; displayName?: string; market: Market; exchange?: 'NASDAQ' | 'NYSE' | 'AMEX'; currency?: Currency; category: Category
   quantity: number; averagePrice: number; currentPrice: number; previousClose: number
+  costBasis?: number; costBasisExact?: string
   priceStatus?: MarketDataStatus; priceUpdatedAt?: string
   transactionPosition?: import('./transaction').TransactionPosition
   transactionPositions?: Partial<Record<Category, import('./transaction').TransactionPosition>>
 }
 
 export interface CalculatedHolding extends Holding {
+  investedExact?: string; valueExact?: string
   invested: number; value: number; profit: number; returnRate: number; dailyProfit: number; dailyRate: number; allocation: number; categories?: Partial<Record<Category, number>>
 }
