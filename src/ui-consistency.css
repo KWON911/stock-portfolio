@@ -27,15 +27,10 @@ main{max-width:var(--content-max-width);padding-inline:var(--page-padding-deskto
 .settings-row{display:grid;grid-template-columns:minmax(0,620px) max-content;justify-content:start;column-gap:32px}
 .theme-row{grid-template-columns:minmax(0,1fr) max-content;justify-content:space-between}
 
-@media (min-width:761px) and (max-width:1024px){
-  .treemap{height:clamp(320px,29vw,420px);aspect-ratio:auto}
-}
-
 @media (min-width:1025px){
   .app-navigation button:focus{outline:none}
   .app-navigation button:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:var(--radius-control)}
   .app-navigation button.active:focus-visible{outline:0;background:color-mix(in srgb,var(--primary) 8%,transparent)}
-  .treemap{height:330px;aspect-ratio:auto}
   .workspace{align-items:start}
   .treemap-section,.allocation{align-self:start}
   .allocation{border-top:0;padding-top:0}
@@ -61,7 +56,6 @@ main{max-width:var(--content-max-width);padding-inline:var(--page-padding-deskto
   .summary{padding-bottom:20px}
   .secondary-stats .stat:first-child{display:flex;grid-column:1/-1;align-items:baseline;justify-content:space-between;gap:12px}
   .secondary-stats .stat:first-child span{margin-bottom:0}
-  .treemap{height:clamp(260px,70vw,290px);min-height:0;aspect-ratio:auto}
   .market-status{min-height:20px}
   .market-error{flex-basis:auto}
   .detail footer.detail-actions,.detail footer.detail-actions.detail-actions--four{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:28px}
