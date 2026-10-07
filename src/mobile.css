@@ -4,7 +4,4 @@
   .app-header > .refresh{min-width:0}
   .stat span{font-size:13px;white-space:nowrap}
   .stat strong{font-size:clamp(20px,6vw,23px);white-space:nowrap}
-  .filter{overflow-x:auto;scrollbar-width:none}
-  .filter::-webkit-scrollbar{display:none}
-  .filter button{flex:0 0 auto;padding:8px 13px;white-space:nowrap}
 }

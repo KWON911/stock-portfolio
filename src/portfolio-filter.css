@@ -1,0 +1,53 @@
+.filter.segmented-filter {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(100%, 400px);
+  gap: 4px;
+  margin: 24px 0;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-secondary);
+}
+
+.filter.segmented-filter button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color .16s ease, color .16s ease;
+}
+
+.filter.segmented-filter button:not(.active):hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--text);
+}
+
+.filter.segmented-filter button.active {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .filter.segmented-filter button.active {
+  color: #10203a;
+}
+
+.filter.segmented-filter button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+@media (max-width: 760px) {
+  .filter.segmented-filter { width: 100%; }
+}
