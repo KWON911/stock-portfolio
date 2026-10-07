@@ -30,7 +30,7 @@ export function LoginPage({
       <section className="login-card">
         <div className="login-brand">
           <p>Personal Portfolio</p>
-          <h1>나의 포트폴리오</h1>
+          <h1>주식 포트폴리오</h1>
           <span>이메일과 비밀번호로 로그인하세요.</span>
         </div>
 
