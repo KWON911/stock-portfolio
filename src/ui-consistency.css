@@ -54,8 +54,6 @@ main{max-width:var(--content-max-width);padding-inline:var(--page-padding-deskto
   main{padding:27px var(--page-padding-mobile) 98px}
   .app-header{margin-bottom:18px}
   .summary{padding-bottom:20px}
-  .secondary-stats .stat:first-child{display:flex;grid-column:1/-1;align-items:baseline;justify-content:space-between;gap:12px}
-  .secondary-stats .stat:first-child span{margin-bottom:0}
   .market-status{min-height:20px}
   .market-error{flex-basis:auto}
   .detail footer.detail-actions,.detail footer.detail-actions.detail-actions--four{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:28px}
