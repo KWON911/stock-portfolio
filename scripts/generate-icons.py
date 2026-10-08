@@ -1,6 +1,7 @@
 """Resize the user-supplied source only; requires Pillow (no app dependency)."""
 from pathlib import Path
 from hashlib import sha256
+from shutil import copyfile
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,8 @@ def main():
             ("favicon-32x32.png", 32), ("favicon-16x16.png", 16),
         ]:
             source.resize((size, size), Image.Resampling.LANCZOS).save(OUT / filename)
+        # Also expose Safari's conventional root discovery path unchanged.
+        copyfile(OUT / "apple-touch-icon.png", ROOT / "public" / "apple-touch-icon.png")
         # Entire square artwork fits within the central radius-40% safe circle:
         # 55% * sqrt(2) / 2 < 40%. No cropping or graphic reconstruction.
         for size in (192, 512):
