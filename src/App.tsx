@@ -74,7 +74,7 @@ export default function App() {
     {view === 'settings' && <SettingsView theme={theme} onTheme={setTheme} onReset={resetAll} updatedAt={market.updatedAt} exchangeRate={market.exchangeRate} />}
     {selected && <><div className="detail-dimmer" onClick={() => setSelected(null)} /><PortfolioDetail item={selected} onClose={() => setSelected(null)} onEdit={() => setForm(selected)} onDelete={() => deleteHolding(selected)} onTransactions={openTransactions} onOpening={() => openOpening()} canRegisterOpening={openingCandidatesForSelected.length > 0} /></>}
     {form !== undefined && <HoldingForm item={form || undefined} lockPosition={Boolean(form?.transactionPosition || form?.transactionPositions)} onSave={save} onClose={() => setForm(undefined)} />}
-    {transactionForm !== undefined && <TransactionForm item={transactionForm || undefined} openingHolding={openingHolding} holdings={holdings} defaultFxRate={market.exchangeRate?.rate} onSave={saveTransaction} onClose={() => { setTransactionForm(undefined); setOpeningHolding(undefined) }} />}
+    {transactionForm !== undefined && <TransactionForm item={transactionForm || undefined} openingHolding={openingHolding} holdings={holdings} filter={filter} defaultFxRate={market.exchangeRate?.rate} onSave={saveTransaction} onClose={() => { setTransactionForm(undefined); setOpeningHolding(undefined) }} />}
     {openingCandidates && <OpeningCategoryPicker holdings={openingCandidates} onSelect={holding => { setOpeningCandidates(undefined); setOpeningHolding(holding); setTransactionForm(null) }} onClose={() => setOpeningCandidates(undefined)} />}
   </main>
 }
