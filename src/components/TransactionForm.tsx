@@ -5,6 +5,14 @@ import { preserveOpeningCost } from '../utils/openingCostPolicy'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const categoryLabel: Record<Category, string> = { investment: '투자', allowance: '용돈', pension: '연금' }
+type NumericKey = 'quantity' | 'price' | 'fee' | 'tax' | 'fxRate'
+type TransactionDraft = Omit<Transaction, NumericKey> & Record<NumericKey, string>
+const numericKeys: NumericKey[] = ['quantity', 'price', 'fee', 'tax', 'fxRate']
+const toDraft = (value: Transaction): TransactionDraft => ({ ...value,
+  quantity: value.quantity ? String(value.quantity) : '', price: value.price ? String(value.price) : '',
+  fee: value.fee ? String(value.fee) : '', tax: value.tax ? String(value.tax) : '',
+  fxRate: value.fxRate == null ? '' : String(value.fxRate),
+})
 const makeTransaction = (holding: Holding, type: Transaction['type'], fxRate?: number): Transaction => ({
   id: crypto.randomUUID(), holdingId: holding.id, market: holding.market, exchange: holding.exchange,
   symbol: holding.symbol, name: holding.displayName ?? holding.name, category: holding.category, type,
@@ -16,27 +24,32 @@ export function TransactionForm({ item, holdings, filter = 'all', openingHolding
   // Editing and opening registration retain their original holding context.
   const availableHoldings = useMemo(() => item || openingHolding || filter === 'all' ? holdings : holdings.filter(holding => holding.category === filter), [holdings, filter, item, openingHolding])
   const initialHolding = useMemo(() => openingHolding ?? holdings.find(holding => holding.id === item?.holdingId) ?? availableHoldings[0], [holdings, item, openingHolding, availableHoldings])
-  const initialForm = () => item ?? (initialHolding ? makeTransaction(initialHolding, openingHolding ? 'opening' : 'buy', defaultFxRate) : null)
-  const [form, setForm] = useState<Transaction | null>(initialForm)
+  const initialForm = () => { const value = item ?? (initialHolding ? makeTransaction(initialHolding, openingHolding ? 'opening' : 'buy', defaultFxRate) : null); return value ? toDraft(value) : null }
+  const [form, setForm] = useState<TransactionDraft | null>(initialForm)
   const [error, setError] = useState('')
   useEffect(() => setForm(initialForm()), [item, initialHolding, openingHolding, defaultFxRate])
   if (!form || !initialHolding) return <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}><section className="sheet transaction-sheet" onMouseDown={event => event.stopPropagation()}><header><h2>거래 추가</h2><button type="button" className="text-button" onClick={onClose}>닫기</button></header><p className="form-hint" role="status">{filter === 'all' ? '등록된 보유종목이 없습니다.' : `${categoryLabel[filter]} 목적의 보유종목이 없습니다.`} 종목 관리에서 해당 목적의 종목을 먼저 등록해 주세요.</p></section></div>
   const isOpening = form.type === 'opening'
   const openingRegistration = Boolean(openingHolding && !item)
-  const change = (key: keyof Transaction, value: string) => setForm(current => current && ({ ...current, [key]: ['quantity', 'price', 'fee', 'tax', 'fxRate'].includes(key) ? Math.max(0, Number(value.replace(/[^0-9.]/g, ''))) : value }))
+  const change = (key: keyof TransactionDraft, value: string) => {
+    if (numericKeys.includes(key as NumericKey) && !/^\d*\.?\d*$/.test(value)) return
+    setForm(current => current && ({ ...current, [key]: value }))
+  }
   const chooseHolding = (id: string) => {
     const holding = availableHoldings.find(candidate => candidate.id === id)
     if (!holding) return
-    setForm(current => current && ({ ...current, holdingId: holding.id, market: holding.market, exchange: holding.exchange, symbol: holding.symbol, name: holding.displayName ?? holding.name, category: holding.category, currency: holding.currency ?? (holding.market === 'US' ? 'USD' : 'KRW'), price: holding.averagePrice, fxRate: holding.market === 'US' ? current.fxRate || defaultFxRate : undefined }))
+    setForm(current => current && ({ ...current, holdingId: holding.id, market: holding.market, exchange: holding.exchange, symbol: holding.symbol, name: holding.displayName ?? holding.name, category: holding.category, currency: holding.currency ?? (holding.market === 'US' ? 'USD' : 'KRW'), price: String(holding.averagePrice), fxRate: holding.market === 'US' ? current.fxRate || (defaultFxRate == null ? '' : String(defaultFxRate)) : '' }))
   }
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const selectedHolding = availableHoldings.find(holding => holding.id === form.holdingId)
     if (!selectedHolding || selectedHolding.category !== form.category) return setError('거래를 기록할 보유종목과 투자 목적을 다시 확인해 주세요.')
-    if (!form.quantity || !form.price || !form.date) return setError('거래일, 수량, 체결가격을 올바르게 입력해 주세요.')
-    if (form.currency === 'USD' && form.fxRate !== undefined && form.fxRate <= 0) return setError('환율은 0보다 커야 합니다.')
+    const next: Transaction = { ...form, quantity: Number(form.quantity), price: Number(form.price), fee: Number(form.fee), tax: Number(form.tax), fxRate: form.currency === 'USD' && form.fxRate !== '' ? Number(form.fxRate) : undefined }
+    if (!Number.isFinite(next.quantity) || next.quantity <= 0 || !Number.isFinite(next.price) || next.price <= 0 || !next.date) return setError('거래일, 수량, 체결가격을 올바르게 입력해 주세요.')
+    if (![next.fee, next.tax].every(value => value !== undefined && Number.isFinite(value) && value >= 0)) return setError('수수료와 세금을 올바르게 입력해 주세요.')
+    if (next.fxRate !== undefined && (!Number.isFinite(next.fxRate) || next.fxRate <= 0)) return setError('환율은 0보다 커야 합니다.')
     const result = await onSave(preserveOpeningCost(item, {
-  ...form,
+  ...next,
   memo: form.memo?.trim() || undefined,
 }))
     if (result) return setError(result)
@@ -50,10 +63,10 @@ export function TransactionForm({ item, holdings, filter = 'all', openingHolding
     <Field label={isOpening ? '초기 보유 기준일' : '거래일'} type="date" value={form.date} onChange={value => change('date', value)} />
     <Field label={isOpening ? '초기 보유수량' : '수량'} type="number" value={form.quantity} readOnly={openingRegistration} onChange={value => change('quantity', value)} />
     <Field label={isOpening ? `초기 평균매수가${isUsd ? ' (USD)' : ' (KRW)'}` : `체결가격${isUsd ? ' (USD)' : ' (KRW)'}`} type="number" value={form.price} readOnly={openingRegistration} onChange={value => change('price', value)} />
-    {!isOpening && <><Field label={`수수료${isUsd ? ' (USD)' : ' (KRW)'}`} type="number" value={form.fee ?? 0} onChange={value => change('fee', value)} /><Field label={`세금${isUsd ? ' (USD)' : ' (KRW)'}`} type="number" value={form.tax ?? 0} onChange={value => change('tax', value)} /></>}
-    {isUsd && <Field label={isOpening ? '초기 보유 당시 환율 (선택)' : '거래 당시 환율 (USD/KRW)'} type="number" value={form.fxRate ?? ''} onChange={value => change('fxRate', value)} />}
+    {!isOpening && <><Field label={`수수료${isUsd ? ' (USD)' : ' (KRW)'}`} type="number" required={false} value={form.fee} onChange={value => change('fee', value)} /><Field label={`세금${isUsd ? ' (USD)' : ' (KRW)'}`} type="number" required={false} value={form.tax} onChange={value => change('tax', value)} /></>}
+    {isUsd && <Field label={isOpening ? '초기 보유 당시 환율 (선택)' : '거래 당시 환율 (USD/KRW)'} type="number" required={false} value={form.fxRate} onChange={value => change('fxRate', value)} />}
     {!isOpening && <Field label="메모" value={form.memo ?? ''} onChange={value => change('memo', value)} />}
   </div>{isUsd && <p className="form-hint">환율은 현재 환율을 기본값으로 제안하며, 과거 거래는 당시 환율로 수정할 수 있습니다.</p>}{error && <p className="form-error">{error}</p>}<button className="save-button">{isOpening ? '초기 보유 저장' : item ? '변경 저장' : '거래 저장'}</button></form></div>
 }
-function Field({ label, value, onChange, type = 'text', readOnly = false }: { label: string; value: string | number; onChange: (value: string) => void; type?: string; readOnly?: boolean }) { return <label className="field">{label}<input required={type !== 'text'} readOnly={readOnly} type={type} min={type === 'number' ? 0 : undefined} step={type === 'number' ? 'any' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
+function Field({ label, value, onChange, type = 'text', readOnly = false, required = type !== 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string; readOnly?: boolean; required?: boolean }) { return <label className="field">{label}<input required={required} readOnly={readOnly} type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'decimal' : undefined} pattern={type === 'number' ? '[0-9]*[.]?[0-9]*' : undefined} placeholder={type === 'number' && !required ? '0' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
 function Select({ label, value, onChange, values }: { label: string; value: string; onChange: (value: string) => void; values: [string, string][] }) { return <label className="field">{label}<select value={value} onChange={event => onChange(event.target.value)}>{values.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label> }

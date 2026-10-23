@@ -3,24 +3,30 @@ import { getHoldingQuote } from '../services/priceService'
 import type { Holding } from '../types/portfolio'
 
 const empty = (): Holding => ({ id: crypto.randomUUID(), category: 'investment', market: 'KR', currency: 'KRW', symbol: '', name: '', quantity: 0, averagePrice: 0, currentPrice: 0, previousClose: 0 })
+type HoldingDraft = Omit<Holding, 'quantity' | 'averagePrice'> & { quantity: string; averagePrice: string }
+const toDraft = (holding: Holding): HoldingDraft => ({ ...holding, quantity: holding.quantity ? String(holding.quantity) : '', averagePrice: holding.averagePrice ? String(holding.averagePrice) : '' })
 
 export function HoldingForm({ item, lockPosition = false, onSave, onClose }: { item?: Holding; lockPosition?: boolean; onSave: (item: Holding, mode: 'add' | 'edit') => Promise<boolean>; onClose: () => void }) {
-  const [form, setForm] = useState<Holding>(item || empty())
+  const [form, setForm] = useState<HoldingDraft>(() => toDraft(item || empty()))
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const editing = Boolean(item)
 
-  useEffect(() => { setForm(item || empty()); setError(''); setSaving(false) }, [item])
+  useEffect(() => { setForm(toDraft(item || empty())); setError(''); setSaving(false) }, [item])
 
-  const change = (key: keyof Holding, value: string) => setForm(current => ({ ...current, [key]: ['quantity', 'averagePrice'].includes(key) ? Math.max(0, Number(value.replace(/[^0-9.]/g, ''))) : value } as Holding))
+  const change = (key: keyof HoldingDraft, value: string) => {
+    if (['quantity', 'averagePrice'].includes(key) && !/^\d*\.?\d*$/.test(value)) return
+    setForm(current => ({ ...current, [key]: value }))
+  }
   const setMarket = (market: 'KR' | 'US') => setForm(current => ({ ...current, market, currency: market === 'US' ? 'USD' : 'KRW', exchange: market === 'US' ? current.exchange ?? 'NASDAQ' : undefined }))
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!form.symbol.trim() || form.quantity <= 0 || form.averagePrice <= 0) return setError('종목 코드, 보유 수량, 평균 매수가를 확인해 주세요.')
+    const quantity = Number(form.quantity), averagePrice = Number(form.averagePrice)
+    if (!form.symbol.trim() || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(averagePrice) || averagePrice <= 0) return setError('종목 코드, 보유 수량, 평균 매수가를 확인해 주세요.')
     setSaving(true); setError('')
     try {
-      const normalized = { ...form, symbol: form.symbol.trim().toUpperCase(), currency: form.currency ?? (form.market === 'US' ? 'USD' : 'KRW') }
+      const normalized = { ...form, quantity, averagePrice, symbol: form.symbol.trim().toUpperCase(), currency: form.currency ?? (form.market === 'US' ? 'USD' : 'KRW') }
       const quote = editing ? undefined : await getHoldingQuote(normalized)
       const next = quote
         ? { ...normalized, name: quote.name, currentPrice: quote.currentPrice, previousClose: quote.previousClose, currency: quote.currency }
@@ -43,6 +49,6 @@ export function HoldingForm({ item, lockPosition = false, onSave, onClose }: { i
 }
 
 function formatPrice(value: number, currency: Holding['currency']) { return currency === 'USD' ? `$${value.toLocaleString('en-US')}` : `${value.toLocaleString('ko-KR')}원` }
-function Field({ label, value, onChange, type = 'text', disabled = false }: { label: string; value: string | number; onChange: (value: string) => void; type?: string; disabled?: boolean }) { return <label className="field">{label}<input required disabled={disabled} type={type} min={type === 'number' ? 0 : undefined} step={type === 'number' ? 'any' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
+function Field({ label, value, onChange, type = 'text', disabled = false }: { label: string; value: string | number; onChange: (value: string) => void; type?: string; disabled?: boolean }) { return <label className="field">{label}<input required disabled={disabled} type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'decimal' : undefined} pattern={type === 'number' ? '[0-9]*[.]?[0-9]*' : undefined} value={value} onChange={event => onChange(event.target.value)} /></label> }
 function Select({ label, value, onChange, values, disabled = false }: { label: string; value: string; onChange: (value: string) => void; values: [string, string][]; disabled?: boolean }) { return <label className="field">{label}<select disabled={disabled} value={value} onChange={event => onChange(event.target.value)}>{values.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label> }
 function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="field field-readonly"><span>{label}</span><strong>{value}</strong></div> }

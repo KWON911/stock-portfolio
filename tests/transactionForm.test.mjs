@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { URL } from 'node:url'
+import { setImmediate } from 'node:timers/promises'
 import vm from 'node:vm'
 import ts from 'typescript'
 
@@ -10,7 +11,7 @@ const holdings = ['investment', 'allowance', 'pension'].map(category => ({
   quantity: 10, averagePrice: 70000, currency: 'KRW',
 }))
 
-function harness(props = {}) {
+function harness(props = {}, component = 'TransactionForm') {
   const states = []
   let cursor = 0
   let saved
@@ -26,15 +27,16 @@ function harness(props = {}) {
   const imports = {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx },
     '../utils/openingCostPolicy': { preserveOpeningCost: (_item, next) => next },
+    '../services/priceService': { getHoldingQuote: async () => ({ name: '삼성전자', currentPrice: 80000, previousClose: 79000, currency: 'KRW' }) },
   }
   const exports = {}
-  const code = ts.transpileModule(readFileSync(new URL('../src/components/TransactionForm.tsx', import.meta.url), 'utf8'), {
+  const code = ts.transpileModule(readFileSync(new URL(`../src/components/${component}.tsx`, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
   vm.runInNewContext(code, { exports, require: name => imports[name], crypto: { randomUUID: () => 'new-transaction' } })
   const render = () => {
     cursor = 0
-    return exports.TransactionForm({ holdings, onSave: async value => { saved = value; return null }, onClose() {}, ...props })
+    return exports[component]({ holdings, onSave: async value => { saved = value; return component === 'HoldingForm' ? true : null }, onClose() {}, ...props })
   }
   return { render, saved: () => saved }
 }
@@ -107,4 +109,96 @@ test('holding outside active purpose cannot be selected', () => {
   const h = harness({ filter: 'pension' })
   select(h.render()).props.onChange('investment')
   assert.equal(select(h.render()).props.value, 'pension')
+})
+
+test('transaction numeric drafts start empty and stay empty when cleared', () => {
+  const h = harness()
+  for (const label of ['수량', '수수료 (KRW)', '세금 (KRW)']) {
+    assert.equal(field(h.render(), label).props.value, '')
+    field(h.render(), label).props.onChange('5')
+    assert.equal(field(h.render(), label).props.value, '5')
+    field(h.render(), label).props.onChange('')
+    assert.equal(field(h.render(), label).props.value, '')
+  }
+})
+
+test('transaction preserves decimal typing and converts only on save; empty fees become zero', async () => {
+  const h = harness()
+  field(h.render(), '수량').props.onChange('0.')
+  assert.equal(field(h.render(), '수량').props.value, '0.')
+  field(h.render(), '수량').props.onChange('0.5')
+  field(h.render(), '체결가격 (KRW)').props.onChange('123.45')
+  await submit(h.render())
+  assert.equal(h.saved().quantity, 0.5)
+  assert.equal(h.saved().price, 123.45)
+  assert.equal(h.saved().fee, 0)
+  assert.equal(h.saved().tax, 0)
+})
+
+test('blank/zero/partial decimal quantity is rejected without saving', async () => {
+  for (const value of ['', '0', '.']) {
+    const h = harness()
+    field(h.render(), '수량').props.onChange(value)
+    await submit(h.render())
+    assert.equal(h.saved(), undefined)
+    assert.ok(nodes(h.render()).some(node => node.props?.className === 'form-error'))
+  }
+})
+
+test('negative or malformed input is not silently turned into a positive number', () => {
+  const h = harness()
+  field(h.render(), '수량').props.onChange('3')
+  for (const value of ['-5', '1.2.3', 'abc', 'Infinity']) {
+    field(h.render(), '수량').props.onChange(value)
+    assert.equal(field(h.render(), '수량').props.value, '3')
+  }
+})
+
+test('USD optional FX can be cleared and fractional fees save as numbers', async () => {
+  const h = harness({ holdings: [{ ...holdings[0], market: 'US', currency: 'USD' }], defaultFxRate: 1350 })
+  field(h.render(), '거래 당시 환율 (USD/KRW)').props.onChange('')
+  assert.equal(field(h.render(), '거래 당시 환율 (USD/KRW)').props.value, '')
+  field(h.render(), '수량').props.onChange('1')
+  field(h.render(), '수수료 (USD)').props.onChange('0.25')
+  await submit(h.render())
+  assert.equal(h.saved().fxRate, undefined)
+  assert.equal(h.saved().fee, 0.25)
+})
+
+test('holding numeric drafts start blank, support clear and decimal typing, save numbers', async () => {
+  const h = harness({}, 'HoldingForm')
+  assert.equal(field(h.render(), '보유 수량').props.value, '')
+  assert.equal(field(h.render(), '평균 매수가').props.value, '')
+  field(h.render(), '보유 수량').props.onChange('2')
+  field(h.render(), '보유 수량').props.onChange('')
+  assert.equal(field(h.render(), '보유 수량').props.value, '')
+  field(h.render(), '보유 수량').props.onChange('0.')
+  assert.equal(field(h.render(), '보유 수량').props.value, '0.')
+  field(h.render(), '보유 수량').props.onChange('0.5')
+  field(h.render(), '평균 매수가').props.onChange('123.45')
+  field(h.render(), '종목 코드').props.onChange('005930')
+  submit(h.render())
+  await setImmediate()
+  assert.equal(h.saved().quantity, 0.5)
+  assert.equal(h.saved().averagePrice, 123.45)
+})
+
+test('holding edit retains numeric defaults and position locks', async () => {
+  const h = harness({ item: { ...holdings[0], currentPrice: 80000, previousClose: 79000 }, lockPosition: true }, 'HoldingForm')
+  assert.equal(field(h.render(), '보유 수량').props.value, '10')
+  assert.equal(field(h.render(), '보유 수량').props.disabled, true)
+  submit(h.render())
+  await setImmediate()
+  assert.equal(h.saved().quantity, 10)
+  assert.equal(h.saved().averagePrice, 70000)
+})
+
+test('holding blank and malformed numeric values cannot save', async () => {
+  const h = harness({}, 'HoldingForm')
+  field(h.render(), '종목 코드').props.onChange('005930')
+  field(h.render(), '평균 매수가').props.onChange('70000')
+  field(h.render(), '보유 수량').props.onChange('.')
+  submit(h.render())
+  await setImmediate()
+  assert.equal(h.saved(), undefined)
 })
